@@ -89,9 +89,19 @@ complex procedures difficult.
 
     *build* provides access to a complete, real language (Common Lisp).
 
+## Philosophy
+
+*build* is very similar to *make* in terms of design philosophy.  Both
+have targets, dependents, recipes, and rules.  However, *build* will
+support other build patterns (such as for Java), have a very powerful
+procedural language, and offer advanced support for remote
+repositories, multi-threading and multi-machine builds, and advanced
+caching for extremely large projects, among other facilities.
+
 ## Why Common Lisp?
 
-Common Lisp was chosen for the following reasons:
+*build* is being built in Common Lisp.  Common Lisp was chosen for the
+ following reasons:
 
 1. Common Lisp is the single best language for building domain specific 
 languages (DSL).  This means that building *build* would be the easiest
@@ -119,15 +129,6 @@ commercial tomorrow.
 7.  Common Lisp is perhaps the most powerful language available.  This means
 that there are no restrictions on the kinds of things that can be done in
 a build system that uses Common Lisp as its language.
-
-## Philosophy
-
-*build* is very similar to *make* in terms of design philosophy.  Both
-have targets, dependents, recipes, and rules.  However, *build* will
-support other build patterns (such as for Java), have a very powerful
-procedural language, and offer advanced support for remote
-repositories, multi-threading and multi-machine builds, and advanced
-caching for extremely large projects, among other facilities.
 
 ## Current Status
 
