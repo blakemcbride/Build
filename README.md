@@ -28,6 +28,8 @@ open source, solution.  The goals of the *build* system are as follows:
     
     g. support projects with possibly 100,000 or more source files
     
+    h. support IDE integration by leveraging their support of other build systems
+    
 
 ## Comparison with other build systems
 
