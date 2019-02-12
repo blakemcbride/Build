@@ -41,7 +41,7 @@ with respect to the needs of languages such as Java, the industry spawned
 than solve the problems that *make* has, the other build systems focused
 specifically on the needs of Java ignoring the needs and lessons learned 
 with *make*.  We thus end up with a class of build systems that are good
-and when class of problems and a set of other build system which are 
+at a class of problems and a set of other build systems which are 
 good at another set of problems.  Neither solve both.  *build* is
 designed to solve both.
 
@@ -57,7 +57,7 @@ another layer of significant complexity.
     simple system and follow their conventions, the build system works
     nearly automatically.  There is almost nothing to specify.  On the
     other hand, as your needs increase and become increasingly specific
-    to your problem domain, "Convention over configuration" build system 
+    to your problem domain, "convention over configuration" build system 
     quickly become inordinately complex.  The complexity of the build process
     starts to become as complex as the application itself thus adding a very
     significant level of complexity and difficulty to support a large and complex
@@ -76,7 +76,7 @@ another layer of significant complexity.
 3. Some build systems, such as *ant* and *maven* are bound to XML.
 While this may have been cool when the world was XML crazy, XML
 is not a language and has many shortcomings that I will not enumerate.
-While other build systems, such as *make*, have a few. minor, language
+While other build systems, such as *make*, have a few, minor, language
 constructs and corresponding flexibilities and power, they lack the
 backing and power of a real language thus making the expression of
 complex procedures difficult.
@@ -98,7 +98,7 @@ languages (DSL).  This means that building *build* would be the easiest
 with Common Lisp.
 
 2. Given the unique qualities of Lisp, building a build system wouldn't
-necessitate the need for a tokenizer or parser,  This again made the process
+necessitate the need for a tokenizer or parser.  This again makes the process
 of building *build* very significantly easier.
 
 3. These days, Common Lisp runs as fast as C, Java, or C# programs so
@@ -120,6 +120,15 @@ commercial tomorrow.
 that there are no restrictions on the kinds of things that can be done in
 a build system that uses Common Lisp as its language.
 
+## Philosophy
+
+*build* is very similar to *make* in terms of design philosophy.  Both
+have targets, dependents, recipes, and rules.  However, *build* will
+support other build patterns (such as for Java), have a very powerful
+procedural language, and offer advanced support for remote
+repositories, multi-threading and multi-machine builds, and advanced
+caching for extremely large projects, among other facilities.
+
 ## Current Status
 
 *build* is currently in its raw infancy and in the process of being created.
@@ -135,3 +144,5 @@ as follows:
 Please contact blake1024@gmail.com to get involved in this project.
 
 Thank you.
+
+Blake McBride
