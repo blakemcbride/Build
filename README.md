@@ -1,7 +1,7 @@
 
 # **BUILD** a software build system
 
-*BUILD* is a software build system like *make*, *ant*, *maven*, and
+*build* is a software build system like *make*, *ant*, *maven*, and
 *gradle*.  It is being built as a response to a significant
 frustration with existing build systems and no known readily available,
 open source, solution.  The goals of the *BUILD* system are as follows:
@@ -15,12 +15,19 @@ open source, solution.  The goals of the *BUILD* system are as follows:
 4. Have all the capabilities of a mature build system such as:
 
     a. perform only necessary tasks
+    
     b. support multiple threads
+    
     c. support remote repositories
+    
     d. ability to cache intermediaries
+    
     e. ability to share intermediaries between several developers
+    
     f. support multiple threads
+    
     g. support multi-machine, remote builds
+    
     h. support projects with possibly 100,000 source files
     
 
@@ -47,26 +54,26 @@ many build systems add a very significant level of complexity to the problem
 solution process.  Rather than a solution, many build systems become yet 
 another layer of significant complexity.  
 
-Build systems such as *maven* and *gradle* tout "convention over
-configuration".  What this really means is that if you have a very
-simple system and follow their conventions, the build system works
-nearly automatically.  There is almost nothing to specify.  On the
-other hand, as your needs increase and become increasingly specific
-to your problem domain, "Convention over configuration" build system 
-quickly become inordinately complex.  The complexity of the build process
-starts to become as complex as the application itself thus adding a very
-significant level of complexity and difficulty to support a large and complex
-application.  Unpaid support for complex problems is unavailable since
-the solutions are not widely known.
+    Build systems such as *maven* and *gradle* tout "convention over
+    configuration".  What this really means is that if you have a very
+    simple system and follow their conventions, the build system works
+    nearly automatically.  There is almost nothing to specify.  On the
+    other hand, as your needs increase and become increasingly specific
+    to your problem domain, "Convention over configuration" build system 
+    quickly become inordinately complex.  The complexity of the build process
+    starts to become as complex as the application itself thus adding a very
+    significant level of complexity and difficulty to support a large and complex
+    application.  Unpaid support for complex problems is unavailable since
+    the solutions are not widely known.
 
-With "convention over configuration" systems, the gap between what you
-want and how you describe it is too wide.  There is too much magic between
-what you want and how you describe it to the build system.
-*build* is not a "convention over configuration" system.  Although it
-has rules and procedures to make things easy, the gap between what you
-want and how you describe it is narrow. Further, like *make*, *build*
-is dependency based and not task based since, with a build system,
-that's what you are trying to do *build files* not *run tasks*.
+    With "convention over configuration" systems, the gap between what you
+    want and how you describe it is too wide.  There is too much magic between
+    what you want and how you describe it to the build system.
+    *build* is not a "convention over configuration" system.  Although it
+    has rules and procedures to make things easy, the gap between what you
+    want and how you describe it is narrow. Further, like *make*, *build*
+    is dependency based and not task based since, with a build system,
+    that's what you are trying to do *build files* not *run tasks*.
 
 3. Some build systems, such as *ant* and *maven* are bound to XML.
 While this may have been cool when the world was XML crazy, XML
@@ -84,7 +91,7 @@ configuration" philosophy.
 
 *build* provides access to a complete, real language (Common Lisp).
 
-# Why Common Lisp?
+## Why Common Lisp?
 
 Common Lisp was chosen for the following reasons:
 
@@ -115,7 +122,7 @@ commercial tomorrow.
 that there are no restrictions on the kinds of things that can be done in
 a build system that uses Common Lisp as its language.
 
-# Current Status
+## Current Status
 
 *build* is currently in its raw infancy and in the process of being created.
 It is unusable.  There are two reasons that it is being put up on *github*
