@@ -24,11 +24,9 @@ open source, solution.  The goals of the *build* system are as follows:
     
     e. ability to share intermediaries between several developers
     
-    f. support multiple threads
+    f. support multi-machine, remote builds
     
-    g. support multi-machine, remote builds
-    
-    h. support projects with possibly 100,000 source files
+    g. support projects with possibly 100,000 or more source files
     
 
 ## Comparison with other build systems
