@@ -4,7 +4,7 @@
 *build* is a software build system like *make*, *ant*, *maven*, and
 *gradle*.  It is being built as a response to a significant
 frustration with existing build systems and no known readily available,
-open source, solution.  The goals of the *BUILD* system are as follows:
+open source, solution.  The goals of the *build* system are as follows:
 
 1. Equal ability to build C-like languages as well as Java-like languages.
 
@@ -83,13 +83,13 @@ constructs and corresponding flexibilities and power, they lack the
 backing and power of a real language thus making the expression of
 complex procedures difficult.
 
-Of the build systems mentioned, only *gradle* has a full, real language
-that can be used to fully express build processes.  Unfortunately,
-*gradle* suffers from poor support of C-like language build procedures,
-and extreme complexity when attempting to go outside their "convention over
-configuration" philosophy.
+    Of the build systems mentioned, only *gradle* has a full, real language
+    that can be used to fully express build processes.  Unfortunately,
+    *gradle* suffers from poor support of C-like language build procedures,
+    and extreme complexity when attempting to go outside their "convention over
+    configuration" philosophy.
 
-*build* provides access to a complete, real language (Common Lisp).
+    *build* provides access to a complete, real language (Common Lisp).
 
 ## Why Common Lisp?
 
