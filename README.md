@@ -1,5 +1,5 @@
 
-# **BUILD** a software build system
+# **BUILD** - a software build system
 
 *build* is a software build system like *make*, *ant*, *maven*, and
 *gradle*.  It is being built as a response to a significant
