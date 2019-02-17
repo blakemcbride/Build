@@ -1,0 +1,7 @@
+
+(depends "file" "file.o" 
+	 (run "gcc" "-o" target dependencies))
+
+(depends "file.o" "file.c" 
+	 (run "gcc" "-c" dependencies))
+

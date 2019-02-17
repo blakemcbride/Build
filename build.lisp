@@ -1,5 +1,10 @@
 
-(sb-posix:chdir "/home/blake/build")
+(require :sb-posix)
+
+; muffle all compiler warnings
+(declaim (sb-ext:muffle-conditions cl:warning))
+
+;; (sb-posix:chdir "/home/blake/build")
 
 ;(require "asdf")
 ;(require :trivial-features)
@@ -19,13 +24,6 @@
 (defparameter *dependencies* nil
   "list of dependencies")
 
-(defmacro once-only ((&rest names) &body body)
-  (let ((gensyms (loop for nil in names collect (gensym))))
-    `(let (,@(loop for g in gensyms collect `(,g (gensym))))
-      `(let (,,@(loop for g in gensyms for n in names collect ``(,,g ,,n)))
-        ,(let (,@(loop for n in names for g in gensyms collect `(,n ,g)))
-           ,@body)))))
-
 (defun add-file (name)
   "Adds name to *file-info*"
   (if (not (nth-value 1 (gethash name *file-info*)))
@@ -37,7 +35,6 @@
       (if (stringp (car v))
 	  v
 	  (eval v))))
-
 
 (defmacro depends (target dependencies &rest recipe)
   (let ((-target- (gensym))
@@ -60,15 +57,20 @@
 	  (list x) 
 	  x)))
 
+(defun print-list (lst)
+  (loop for str in lst
+       do (format t "~a " str))
+  (terpri))
+
 (defun run (pgm &rest args)
   (if *verbose*
-      (format t "~S~%" (cons pgm args)))
+      (print-list (cons pgm args)))
   (run-program pgm args :search :wait :output *verbose*))
 
 
-(depends "file.o" "file.c" 
-	 (run "gcc" "-c" dependencies)
-	 )
+;; (depends "file.o" "file.c" 
+;; 	 (run "gcc" "-c" dependencies)
+;; 	 )
 
 ;(format t "~a~%" *dependencies*)
 
@@ -76,9 +78,9 @@
 
 ;(run-program "ls" nil :search :wait :output *verbose*)
 
-(print (funcall (caddar *dependencies*) 
-		(caar *dependencies*) 
-		(cadar *dependencies*)))
+;; (print (funcall (caddar *dependencies*) 
+;; 		(caar *dependencies*) 
+;; 		(cadar *dependencies*)))
 
 
 (defun print-hash-table (ht)
@@ -97,3 +99,28 @@
 				   0) 
 			       (cdr val)))))
 	     *file-info*)))
+
+(defun main ()
+  (handler-case
+      (progn
+  	(load "build.build")
+	(format t "build.build has been loaded~%")
+	(loop for dep in *dependencies*
+	   do (let ((res (funcall (caddr dep)
+				  (car dep)
+				  (cadr dep)
+				  )))
+		(setq res (sb-impl::process-%exit-code res))
+		(if (/= res 0)
+		    (progn (format t "Process error; aborting build.~%")
+			   (return))))))
+    (warning (c)
+      (format t "~a~%" "Warning loading file build.build")
+      ;; (format t "~s~%" c)
+      )
+    (t (c)
+      (format *error-output* "~%~a~%" "Error loading file build.build"))))
+
+  ;; (format t "~s~%" sb-ext:*posix-argv*)
+
+(save-lisp-and-die "build" :executable t :toplevel #'main)
