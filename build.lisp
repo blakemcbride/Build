@@ -24,6 +24,9 @@
 (defparameter *dependencies* nil
   "list of dependencies")
 
+(defparameter *main-target* nil
+  "This is what is being built")
+
 (defun add-file (name)
   "Adds name to *file-info*"
   (if (not (nth-value 1 (gethash name *file-info*)))
@@ -37,11 +40,14 @@
 	  (eval v))))
 
 (defmacro depends (target dependencies &rest recipe)
+  "User level function to define dependencies"
   (let ((-target- (gensym))
 	(-dependencies- (gensym)))
     `(let ((,-target- (get-value ,target))
 	   (,-dependencies- (get-value ,dependencies)))
        (progn 
+	 (if (and (null *main-target*) (null *dependencies*))
+	     (setq *main-target* ,-target-))
 	 (setq *dependencies* (cons (list ,-target- ,-dependencies-
 	 				  (if (listp ',recipe) 
 	 				      (function (lambda (target dependencies) ,@recipe)))) 
@@ -49,6 +55,10 @@
 	 (mapc #'add-file (makelist ,-target-))
 	 (mapc #'add-file (makelist ,-dependencies-))
 	 ))))
+
+(defun main-target (target)
+  "User level function to define the main target"
+  (setq *main-target* target))
 
 (defun makelist (x)
   "Takes nil, atom, or list and returns a list.  Good for map."
@@ -82,7 +92,6 @@
 ;; 		(caar *dependencies*) 
 ;; 		(cadar *dependencies*)))
 
-
 (defun print-hash-table (ht)
   "Print the contents of a hashtable"
   (loop for key being the hash-keys of ht
@@ -101,10 +110,14 @@
 	     *file-info*)))
 
 (defun main ()
+  (if (cdr sb-ext:*posix-argv*)
+      (setq *main-target* (cadr sb-ext:*posix-argv*)))
   (handler-case
       (progn
   	(load "build.build")
 	(format t "build.build has been loaded~%")
+	(if *main-target*
+	    (format t "Building ~a~%" *main-target*))
 	(loop for dep in *dependencies*
 	   do (let ((res (funcall (caddr dep)
 				  (car dep)
