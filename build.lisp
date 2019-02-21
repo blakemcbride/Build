@@ -21,7 +21,7 @@
 (defparameter *verbose* t
   "verbose output of commands")
 
-(defparameter *file-info* (make-hash-table :test 'equal)
+(defparameter *file-info* (make-hash-table :test 'equal :size 100000)
   "full-file-name - (file-date out-of-date)")
 
 (defparameter *dependencies* nil
@@ -50,8 +50,8 @@
    return value must be saved).
    lst is the tconc list.
    Use (car lst) to get the actual list from a tconc list.
-   itm is the item being added to the end of the list.
-"
+   itm is the item being added to the end of the list."
+  (declare (type list lst))
   (let ((new (list itm)))
     (cond ((null lst)
 	   (setq lst (list new))
