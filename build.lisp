@@ -1,4 +1,7 @@
 
+; build.lisp
+; written by Blake McBride
+
 (require :sb-posix)
 
 ; muffle all compiler warnings
@@ -38,6 +41,28 @@
       (if (stringp (car v))
 	  v
 	  (eval v))))
+
+(defun tconc (lst itm)
+  "Manage structure to be able to add to the end of a list ala Interlisp tconc.
+   This allows lisp to append to the end of arbitrary sized lists in little 
+   more time than adding to the beginning of a list.
+   An empty list is represented as '(nil) but nil can be passed too (but the
+   return value must be saved).
+   lst is the tconc list.
+   Use (car lst) to get the actual list from a tconc list.
+   itm is the item being added to the end of the list.
+"
+  (let ((new (list itm)))
+    (cond ((null lst)
+	   (setq lst (list new))
+	   (setf (cdr lst) new))
+	  ((null (car lst))
+	   (setf (car lst) new)
+	   (setf (cdr lst) new))
+	  (t 
+	   (setf (cddr lst) new)
+	   (setf (cdr lst) new)))
+    lst))
 
 (defmacro depends (target dependencies &rest recipe)
   "User level function to define dependencies"
