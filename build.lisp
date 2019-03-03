@@ -2,12 +2,16 @@
 ; build.lisp
 ; written by Blake McBride
 
+(defparameter *debugging* nil)
+
 (require :sb-posix)
 
 ; muffle all compiler warnings
 (declaim (sb-ext:muffle-conditions cl:warning))
 
-;; (sb-posix:chdir "/home/blake/build")
+;;(sb-posix:chdir "/home/blake/Build-master")
+(if *debugging*
+    (setq *default-pathname-defaults* #P"/home/blake/Build-master/"))
 
 ;(require "asdf")
 ;(require :trivial-features)
@@ -25,7 +29,7 @@
   "full-file-name - (file-date out-of-date)")
 
 (defparameter *dependencies* nil
-  "list of dependencies")
+     "list of dependencies")
 
 (defparameter *main-target* nil
   "This is what is being built")
@@ -68,8 +72,8 @@
   "User level function to define dependencies"
   (let ((-target- (gensym))
 	(-dependencies- (gensym)))
-    `(let ((,-target- (get-value ,target))
-	   (,-dependencies- (get-value ,dependencies)))
+    `(let ((,-target- (makelist (get-value ,target)))
+	   (,-dependencies- (makelist (get-value ,dependencies))))
        (progn 
 	 (if (and (null *main-target*) (null *dependencies*))
 	     (setq *main-target* ,-target-))
@@ -77,9 +81,8 @@
 	 				  (if (listp ',recipe) 
 	 				      (function (lambda (target dependencies) ,@recipe)))) 
 	 			    *dependencies*))
-	 (mapc #'add-file (makelist ,-target-))
-	 (mapc #'add-file (makelist ,-dependencies-))
-	 ))))
+	 (mapc #'add-file ,-target-)
+	 (mapc #'add-file ,-dependencies-)))))
 
 (defun main-target (target)
   "User level function to define the main target"
@@ -134,31 +137,49 @@
 			       (cdr val)))))
 	     *file-info*)))
 
-(defun main ()
-  (if (cdr sb-ext:*posix-argv*)
-      (setq *main-target* (cadr sb-ext:*posix-argv*)))
+(defun load-build-file ()
+  "Load build.build
+   Return t if successful
+   Return nil if not successful"
   (handler-case
       (progn
-  	(load "build.build")
+	(load "build.build")
 	(format t "build.build has been loaded~%")
 	(if *main-target*
-	    (format t "Building ~a~%" *main-target*))
-	(loop for dep in *dependencies*
-	   do (let ((res (funcall (caddr dep)
-				  (car dep)
-				  (cadr dep)
-				  )))
-		(setq res (sb-impl::process-%exit-code res))
-		(if (/= res 0)
-		    (progn (format t "Process error; aborting build.~%")
-			   (return))))))
-    (warning (c)
-      (format t "~a~%" "Warning loading file build.build")
-      ;; (format t "~s~%" c)
-      )
+	    (progn
+	      (format t "Building ")
+	      (print-list *main-target*)
+	      (terpri)))
+	t)
     (t (c)
-      (format *error-output* "~%~a~%" "Error loading file build.build"))))
+      (format *error-output* "~%Error loading file build.build~%")
+      nil)))
+
+(defun execute-build (deps)
+  (loop for dep in deps
+     do (let ((res (funcall (caddr dep)
+			    (caar dep)
+			    (caadr dep))))
+	  (setq res (sb-impl::process-%exit-code res))
+	  (if (/= res 0)
+	      (progn (format t "Process error; aborting build.~%")
+		     (return-from execute-build nil))
+	      )))
+  t)
+
+(defun main ()
+  (if *debugging*
+      (progn (clrhash *file-info*)
+	     (setq *dependencies* nil)
+	     (setq *main-target* nil)))
+  (if (cdr sb-ext:*posix-argv*)
+      (setq *main-target* (cadr sb-ext:*posix-argv*)))
+  (and (load-build-file)
+       (progn
+	 (format t "~a~%" *dependencies*)
+	 (execute-build *dependencies*))))
 
   ;; (format t "~s~%" sb-ext:*posix-argv*)
 
-(save-lisp-and-die "build" :executable t :toplevel #'main)
+(if (not *debugging*)
+    (save-lisp-and-die "build" :executable t :toplevel #'main))
