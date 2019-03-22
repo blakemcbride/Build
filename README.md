@@ -6,7 +6,8 @@
 frustration with existing build systems and no known readily available,
 open source, solution.  The goals of the *build* system are as follows:
 
-1. Equal ability to build C-like languages as well as Java-like languages.
+1. Equal ability to build C-like languages, Java-like languages, as well as
+support for front-end build requirements.
 
 2. Be easy to understand.
 
@@ -44,7 +45,7 @@ than solve the problems that *make* has, the other build systems focused
 specifically on the needs of Java ignoring the needs and lessons learned 
 with *make*.  We thus end up with a class of build systems that are good
 at a class of problems and a set of other build systems which are 
-good at another set of problems.  Neither solve both.  *build* is
+good at another set of problems.  Neither solves both.  *build* is
 designed to solve both.
 
 2.  *make* is explicit and easy to understand.  When building software,
@@ -72,7 +73,7 @@ another layer of significant complexity.
     *build* is not a "convention over configuration" system.  Although it
     has rules and procedures to make things easy, the gap between what you
     want and how you describe it is narrow. Further, like *make*, *build*
-    is dependency based and not task based since, with a build system,
+    is dependency-based and not task-based since, with a build system,
     that's what you are trying to do *build files* not *run tasks*.
 
 3. Some build systems, such as *ant* and *maven* are bound to XML.
@@ -105,7 +106,7 @@ caching for extremely large projects, among other facilities.
 *build* is being built in Common Lisp.  Common Lisp was chosen for the
  following reasons:
 
-1. Common Lisp is the single best language for building domain specific 
+1. Common Lisp is the single best language for building domain-specific
 languages (DSL).  This means that building *build* would be the easiest
 with Common Lisp.
 
