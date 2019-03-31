@@ -40,12 +40,18 @@
   "Adds name to *file-info* if it's not already registered
    Returns the name-specific node
 "
+  (declare (type string target name))
   (let ((node (gethash name *file-info*)))
     (if (not node)
 	(progn
-	  (setq node '(nil nil))
+	  (setq node (list nil nil))
 	  (setf (gethash name *file-info*) node)))
     node))
+
+(defun make-out-of-date (file)
+  (declare (type string file))
+  (let ((node (add-file file)))
+    (setf (cadr node) t)))
 
 (defun get-current-file-time (name)
   (let* ((cwd (concatenate 'string (sb-posix:getcwd) "/"))
@@ -54,40 +60,63 @@
 	(sb-posix:stat-mtime (sb-posix:stat path))
 	0)))
 
-(defun get-file-date (name)
+(defun get-file-node (name force)
   "Adds name to *file-info* if it's not already registered
-   Updates the file time info
-   Returns the file time
+   Updates the file time info if unknown or force
+   Returns the node
 "
+  (declare (type string name)
+	   (type boolean force))
   (let ((node (add-file name)))
-    (if (null (car node))
+    (if (or force 
+	    (null (car node))) ; no stored date
 	(setf (car node)
 	      (get-current-file-time name)))
-    (car node)))
+    node))
 
-(defun is-out-of-date-atom (target dep)
+(defun get-file-date (name force)
+  "Adds name to *file-info* if it's not already registered
+   Updates the file time info if unknown or force
+   Returns the file time
+"
+  (car (get-file-node name force)))
+
+(defun file-needs-to-be-rebuilt (file)
+  (declare (type string file))
+  (cadr (get-file-node file nil)))
+
+(defun is-out-of-date-atom (target dep force)
   "Both target and dep are string file names.
    Return t if target is out-of-date.
 "
-  (let ((td (get-file-date target))
-	(dd (get-file-date dep)))
-    (or (zerop td)
+  (declare (type string target dep)
+	   (type boolean force))
+  (let* ((tn (get-file-node target force))
+	 (dn (get-file-node dep force))
+	 (td (car tn))
+	 (dd (car dn)))
+    (or (cadr tn)
+	(cadr dn)
+	(zerop td)
+	(zerop dd)
 	(< td dd))))
 
-(defun is-out-of-date (target dep)
+(defun is-out-of-date (target dep force)
   "target is an atom.  dep can be an atom or list.
    Returns t if the target is out-of-date with respect to any of the dependencies.
 "
+  (declare (type string target)
+	   (type boolean force))
   (block ood
     (cond ((consp dep)
 	   (loop for d in dep
-	      do (if (is-out-of-date-atom target d)
+	      do (if (is-out-of-date-atom target d force)
 		     (return-from ood t)))
 	   nil)
-	  (t (is-out-of-date-atom target dep)))))
+	  (t (is-out-of-date-atom target dep force)))))
 
-(defmacro not-out-of-date (target dep)
-  `(null (is-out-of-date ,target ,dep)))
+(defmacro not-out-of-date (target dep force)
+  `(null (is-out-of-date ,target ,dep ,force)))
 
 (defun get-value (v)
   "Returns the value of v except that if the car of the list is a string, the list is assumed to be a list of starting and auto-quoted"
@@ -155,38 +184,50 @@
 (defun join-set (lst1 lst2)
   (union (makelist lst1) (makelist lst2)))
 
+(defun check-single-target (target)
+  (declare (type string target))
+  (if (null (file-needs-to-be-rebuilt target))
+      (loop for clause in *build-clauses*
+	 do (cond ((string-found target (car clause))
+		   (loop for dep in (cadr clause)
+		      do (check-single-target dep)
+			(cond ((is-out-of-date target dep nil)
+			       (make-out-of-date target)
+			       (return-from check-single-target)))))))))
+
+(defun check-multiple-targets (targets)
+  (declare (type cons targets))
+  (loop for target in targets
+     do (check-single-target target))
+  t)
+
 (defun sort-single-dependency (target)
   "Go through *build-clauses* and create a like-structured list that includes only what needs to be done and in the correct order for a single target
    Also returned is a list of the out-of-date dependencies of the target.
 "
   (declare (type string target))
-  (let (deps  alldeps)
+  (let (build-clauses dependencies)
 					; first the ones that have receipies
     (map nil 
-	 #'(lambda (d)
-	     (format t "d = ~%~s~%" d)
-             (format t "target = ~s~%" target)
-	     (format t "(string-found target (car d)) = ~s~%" (string-found target (car d)))
-	     (format t "(is-out-of-date target (cadr d)) = ~s~%" (is-out-of-date target (cadr d)))
-	     (cond ((and (cddr d)	                        ; has receipe
-			 (string-found target (car d))          ; applicable target
-			 (or (null (cadr d))                    ; no dependencies
-			     (is-out-of-date target (cadr d)))) ; has dependencies and some are out-of-date
-		    (format t "test passed~%")
-		    (setq alldeps (join-set alldeps (cadr d)))
-		    (setq deps (cons d deps)))))
+	 #'(lambda (bc)
+	     (cond ((and (cddr bc)	                           ; has receipe
+			 (string-found target (car bc))            ; applicable target
+			 (or (null (cadr bc))                      ; no dependencies
+			     (is-out-of-date target (cadr bc) t))) ; has dependencies and some are out-of-date
+		    (setq dependencies (join-set dependencies (cadr bc)))
+		    (setq build-clauses (cons bc build-clauses)))))
 	 *build-clauses*)
 					; now the ones that have no receipies
     (map nil 
-	 #'(lambda (d)
-	     (cond ((and (null (cddr d))                        ; doesn't have receipe
-			 (string-found target (car d))          ; applicable target
-			 (or (null (cadr d))                    ; no dependencies
-			     (is-out-of-date target (cadr d)))) ; has dependencies and some are out-of-date  
-		    (setq alldeps (join-set alldeps (cadr d)))
-		    (setq deps (cons d deps)))))
+	 #'(lambda (bc)
+	     (cond ((and (null (cddr bc))                          ; doesn't have receipe
+			 (string-found target (car bc))            ; applicable target
+			 (or (null (cadr bc))                      ; no dependencies
+			     (is-out-of-date target (cadr bc) t))) ; has dependencies and some are out-of-date  
+		    (setq dependencies (join-set dependencies (cadr bc)))
+		    (setq build-clauses (cons bc build-clauses)))))
 	 *build-clauses*)
-    (values deps alldeps)))
+    (values build-clauses dependencies)))
 
 (defun sort-build-clauses (targets)
   (declare (type list targets))
@@ -196,7 +237,7 @@
 	    (cond (cmds
 		   (setq allcmds (append cmds allcmds))
 		   (loop for d in deps
-		      do (if (is-out-of-date target d)
+		      do (if (is-out-of-date target d t)
 			     (setq allcmds (append (sort-build-clauses (list d)) allcmds))))))))
     allcmds))
 
@@ -278,20 +319,19 @@
 		     (return-from execute-build nil)))))
   t)
 
+(defun reset-file-info ()
+  (clrhash *file-info*))
+
 (defun main ()
   (if *debugging*
-      (progn (clrhash *file-info*)
+      (progn (reset-file-info)
 	     (setq *build-clauses* nil)
 	     (setq *main-targets* nil)))
   (if (cdr sb-ext:*posix-argv*)
       (setq *main-targets* (cdr sb-ext:*posix-argv*)))
   (and (load-build-file)
-       (progn
-	 (if *debugging*
-	     (progn
-	       (format t "*build-clauses* = ~%~a~%" *build-clauses*)
-	       (format t "sorted build clauses = ~%~s~%" (sort-build-clauses *main-targets*))))
-	(execute-build (sort-build-clauses *main-targets*)))))
+       (check-multiple-targets *main-targets*)
+       (execute-build (sort-build-clauses *main-targets*))))
 
 (if (not *debugging*)
     (save-lisp-and-die "build" :executable t :toplevel #'main))
