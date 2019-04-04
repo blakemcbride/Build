@@ -9,6 +9,8 @@
 ; muffle all compiler warnings
 (declaim (sb-ext:muffle-conditions cl:warning))
 
+(if *debugging* (declaim (optimize (debug 3))))
+
 ;;(sb-posix:chdir "/home/blake/Build")
 (if *debugging*
     (setq *default-pathname-defaults* #P"/home/blake/Build/"))
@@ -151,18 +153,19 @@
 (defmacro depends (target dependencies &rest recipe)
   "User level function to define dependencies"
   (let ((-target- (gensym))
-	(-dependencies- (gensym)))
+	(-dependencies- (gensym))
+	(-recipe- (gensym)))
     `(let ((,-target- (makelist (get-value ,target)))
-	   (,-dependencies- (makelist (get-value ,dependencies))))
-       (progn 
-	 (if (and (null *main-targets*) (null *build-clauses*))
-	     (setq *main-targets* ,-target-))
-	 (setq *build-clauses* (cons (list ,-target- ,-dependencies-
-	 				  (if (listp ',recipe) 
-	 				      (function (lambda (target dependencies) ,@recipe)))) 
-	 			    *build-clauses*))
-	 (mapc #'add-file ,-target-)
-	 (mapc #'add-file ,-dependencies-)))))
+	   (,-dependencies- (makelist (get-value ,dependencies)))
+	   (,-recipe- ',recipe))
+       (if (and (null *main-targets*) (null *build-clauses*))
+	   (setq *main-targets* ,-target-))
+       (setq *build-clauses* (cons (list ,-target- ,-dependencies-
+					 (if (consp ,-recipe-) 
+					     (function (lambda (target dependencies) ,@recipe))))
+				   *build-clauses*))
+       (mapc #'add-file ,-target-)
+       (mapc #'add-file ,-dependencies-))))
 
 (defun main-targets (target)
   "User level function to define the main target"
@@ -172,14 +175,13 @@
 (defun string-found (str lst)
   "return t if str found in lst (which may be an atom or list)"
   (declare (type string str))
-  (block sf
-    (if (atom lst)
-	(equal str lst)
-	(map nil 
-	     #'(lambda (s)
-		     (if (equal s str)
-			 (return-from sf t)))
-	     lst))))
+  (if (atom lst)
+      (equal str lst)
+      (map nil
+	   #'(lambda (s)
+	       (if (equal s str)
+		   (return-from string-found t)))
+	   lst)))
 
 (defun join-set (lst1 lst2)
   (union (makelist lst1) (makelist lst2)))
@@ -310,13 +312,14 @@
 
 (defun execute-build (cmds)
   (loop for cmd in cmds
-     do (let ((res (funcall (caddr cmd)
-			    (caar cmd)
-			    (caadr cmd))))
-	  (setq res (sb-impl::process-%exit-code res))
-	  (if (/= res 0)
-	      (progn (format t "Process error; aborting build.~%")
-		     (return-from execute-build nil)))))
+     do (if (caddr cmd)
+	    (let ((res (funcall (caddr cmd)
+				(caar cmd)
+				(caadr cmd))))
+	      (setq res (sb-impl::process-%exit-code res))
+	      (if (/= res 0)
+		  (progn (format t "Process error; aborting build.~%")
+			 (return-from execute-build nil))))))
   t)
 
 (defun reset-file-info ()
