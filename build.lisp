@@ -163,7 +163,7 @@
 	   (setq *main-targets* ,-target-))
        (setq *build-clauses* (cons (list ,-target- ,-dependencies-
 					 (if (consp ,-recipe-) 
-					     (function (lambda (target dependencies) ,@recipe))))
+					     (function (lambda (target dependencies out-of-date-dependencies) ,@recipe))))
 				   *build-clauses*))
        (mapc #'add-file ,-target-)
        (mapc #'add-file ,-dependencies-))))
@@ -216,7 +216,7 @@
 	     (cond ((and (cddr bc)	                           ; has receipe
 			 (string-found target (car bc))            ; applicable target
 			 (or (null (cadr bc))                      ; no dependencies
-			     (is-out-of-date target (cadr bc) t))) ; has dependencies and some are out-of-date
+			     (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
 		    (setq dependencies (join-set dependencies (cadr bc)))
 		    (setq build-clauses (cons bc build-clauses)))))
 	 *build-clauses*)
@@ -226,7 +226,7 @@
 	     (cond ((and (null (cddr bc))                          ; doesn't have receipe
 			 (string-found target (car bc))            ; applicable target
 			 (or (null (cadr bc))                      ; no dependencies
-			     (is-out-of-date target (cadr bc) t))) ; has dependencies and some are out-of-date  
+			     (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date  
 		    (setq dependencies (join-set dependencies (cadr bc)))
 		    (setq build-clauses (cons bc build-clauses)))))
 	 *build-clauses*)
@@ -240,7 +240,7 @@
 	    (cond (cmds
 		   (setq allcmds (append cmds allcmds))
 		   (loop for d in deps
-		      do (if (is-out-of-date target d t)
+		      do (if (is-out-of-date target d nil)
 			     (setq allcmds (append (sort-build-clauses (list d)) allcmds))))))))
     allcmds))
 
@@ -310,12 +310,21 @@
       (format *error-output* "~%Error loading file build.build~%")
       nil)))
 
+(defun make-ood-dependencies (targets dependencies)
+  (let (ood-dependencies)
+    (loop for target in (makelist targets)
+       do (loop for dep in (makelist dependencies)
+	     do (if (is-out-of-date-atom target dep nil)
+		    (setq ood-dependencies (cons dep ood-dependencies)))))
+    ood-dependencies))
+
 (defun execute-build (cmds)
   (loop for cmd in cmds
      do (if (caddr cmd)
 	    (let ((res (funcall (caddr cmd)
 				(caar cmd)
-				(caadr cmd))))
+				(caadr cmd)
+				(make-ood-dependencies (caar cmd) (caadr cmd)))))
 	      (cond (res
 		     (setq res (sb-impl::process-%exit-code res))
 		     (if (/= res 0)
