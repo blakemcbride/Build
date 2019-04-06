@@ -7,3 +7,5 @@
 (depends "file.o" "file.c" 
 	 (run "gcc" "-c" dependencies))
 
+(depends "test" nil
+         (format t "This is the line~%"))

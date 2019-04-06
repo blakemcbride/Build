@@ -134,7 +134,7 @@
    This allows lisp to append to the end of arbitrary sized lists in little 
    more time than adding to the beginning of a list.
    An empty list is represented as '(nil) but nil can be passed too (but the
-   return value must be saved).
+   return value must be saved).  Otherwise lst should be initialized to (list nil).
    lst is the tconc list.
    Use (car lst) to get the actual list from a tconc list.
    itm is the item being added to the end of the list."
@@ -316,10 +316,11 @@
 	    (let ((res (funcall (caddr cmd)
 				(caar cmd)
 				(caadr cmd))))
-	      (setq res (sb-impl::process-%exit-code res))
-	      (if (/= res 0)
-		  (progn (format t "Process error; aborting build.~%")
-			 (return-from execute-build nil))))))
+	      (cond (res
+		     (setq res (sb-impl::process-%exit-code res))
+		     (if (/= res 0)
+			 (progn (format t "Process error; aborting build.~%")
+				(return-from execute-build nil))))))))
   t)
 
 (defun reset-file-info ()
