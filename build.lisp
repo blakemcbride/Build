@@ -31,7 +31,12 @@
 
 (defparameter *build-clauses* nil
      "list of dependencies
-      Each element looks like: (target dependencies code-to-create ... )
+      Each element looks like: 
+         (target dependencies 
+                 code-to-create ... )
+             or
+         ('corresponding (target-path target-type) (dependency-path dependency-type)
+                 code-to-create ... )
 ")
 
 (defparameter *main-targets* nil
@@ -152,7 +157,7 @@
     lst))
 
 (defmacro depends (target dependencies &rest recipe)
-  "User level function to define dependencies"
+  "User level function to define dependencies (c-like)"
   (let ((-target- (gensym))
 	(-dependencies- (gensym))
 	(-recipe- (gensym)))
@@ -167,6 +172,21 @@
 				   *build-clauses*))
        (mapc #'add-file ,-target-)
        (mapc #'add-file ,-dependencies-))))
+
+(defmacro corresponding-depends (target dependencies &rest recipe)
+  "User level function to define corresponding dependencies (java-like)"
+  (let ((-target- (gensym))
+	(-dependencies- (gensym))
+	(-recipe- (gensym)))
+    `(let ((,-target- (makelist (get-value ,target)))
+	   (,-dependencies- (makelist (get-value ,dependencies)))
+	   (,-recipe- ',recipe))
+       (if (and (null *main-targets*) (null *build-clauses*))
+	   (setq *main-targets* ,-target-))
+       (setq *build-clauses* (cons (list 'corresponding ,-target- ,-dependencies-
+					 (if (consp ,-recipe-) 
+					     (function (lambda (target dependencies out-of-date-dependencies) ,@recipe))))
+				   *build-clauses*)))))
 
 (defun main-targets (target)
   "User level function to define the main target"
@@ -256,10 +276,19 @@
        do (format t "~a " str))
   (terpri))
 
+(defun flatten (list)
+  (labels ((flatten2 (list tail)
+             (cond
+               ((null list) tail)
+               ((atom list) (list* list tail))
+               (t (flatten2 (first list)
+                            (flatten2 (rest list) tail))))))
+    (flatten2 list nil)))
+
 (defun run (pgm &rest args)
   (if *verbose*
-      (print-list (cons pgm args)))
-  (run-program pgm args :search :wait :output *verbose*))
+      (print-list (cons pgm (flatten args))))
+  (run-program pgm (flatten args) :search :wait :output *verbose*))
 
 
 ;; (depends "file.o" "file.c" 
