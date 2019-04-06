@@ -11,9 +11,8 @@
 
 (if *debugging* (declaim (optimize (debug 3))))
 
-;;(sb-posix:chdir "/home/blake/Build")
 (if *debugging*
-    (setq *default-pathname-defaults* #P"/home/blake/Build/"))
+    (sb-posix:chdir "/home/blake/Build"))
 
 ;(require "asdf")
 ;(require :trivial-features)
@@ -120,13 +119,15 @@
 (defmacro not-out-of-date (target dep force)
   `(null (is-out-of-date ,target ,dep ,force)))
 
-(defun get-value (v)
+(defmacro get-value (v)
   "Returns the value of v except that if the car of the list is a string, the list is assumed to be a list of starting and auto-quoted"
-  (if (atom v)
-      (eval v)
-      (if (stringp (car v))
-	  v
-	  (eval v))))
+  (let ((v* (gensym)))
+    `(let ((,v* ',v))
+       (if (atom ,v*)
+	   (eval ,v*)
+	   (if (stringp (car ,v*))
+	       ,v*
+	       (eval ,v*))))))
 
 (defun tconc (lst itm)
   "Manage structure to be able to add to the end of a list ala Interlisp tconc.
@@ -303,8 +304,7 @@
 	(if *main-targets*
 	    (progn
 	      (format t "Building ")
-	      (print-list *main-targets*)
-	      (terpri)))
+	      (print-list *main-targets*)))
 	t)
     (t (c)
       (format *error-output* "~%Error loading file build.build~%")
