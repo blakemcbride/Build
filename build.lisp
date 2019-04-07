@@ -20,8 +20,6 @@
 ;(require :babel)
 ;(require :cffi)
 
-; dependency
-; (target-files dependent-files)
 
 (defparameter *verbose* t
   "verbose output of commands")
@@ -46,7 +44,7 @@
   "Adds name to *file-info* if it's not already registered
    Returns the name-specific node
 "
-  (declare (type string target name))
+  (declare (type string name))
   (let ((node (gethash name *file-info*)))
     (if (not node)
 	(progn
@@ -361,6 +359,55 @@
 				(return-from execute-build nil))))))))
   t)
 
+(defun ensure-slash-end (name)
+  (declare (type string name))
+  (if (eql #\/ (char name (1- (length name))))
+      name
+      (concatenate 'string name "/")))
+
+(defun get-name-type (name)
+  "Return the type of file name is:
+      0 = non-existant
+      1 = file
+      2 = directory
+      3 = other
+"
+  (declare (type string name))
+  (handler-case
+      (progn
+	(let* ((sb (sb-posix:stat name))
+	       (mode (sb-posix:stat-mode sb)))
+	  (cond ((plusp (logand mode #o100000)) 1)
+		((plusp (logand mode #o40000)) 2)
+		(t 3))))
+    (t (e) 0)))
+
+(defun string-ends-with-p (str1 str2)
+  "Determine whether `str1` ends with `str2`"
+  (declare (type string str1 str2))
+  (let ((p (mismatch str2 str1 :from-end T)))
+    (or (not p) (= 0 p))))
+
+(defun get-file-tree (type path)
+  "Returns a list of files that exist within an entire directory tree with a given file extension.
+   Example:  (get-file-tree \".java\" \".\")
+"
+  (declare (type string type path))
+  (let (res)
+    (loop for ent in (directory (concatenate 'string (ensure-slash-end path) "*.*"))
+       do (let ((ents (enough-namestring ent)))
+	    (if (or (not (search "/." ents))
+		     (not (eql #\. (char ents 0))))
+		(case (get-name-type ents)
+		  (1			; file
+		   (if (string-ends-with-p ents type)
+		       (setq res (cons ents res))))
+		  (2			; directory
+		   (let ((res2 (get-file-tree type ents)))
+		     (if res2
+			 (setq res (append res res2)))))))))
+    res))
+
 (defun reset-file-info ()
   (clrhash *file-info*))
 
@@ -377,3 +424,4 @@
 
 (if (not *debugging*)
     (save-lisp-and-die "build" :executable t :toplevel #'main))
+
