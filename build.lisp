@@ -408,6 +408,21 @@
 			 (setq res (append res res2)))))))))
     res))
 
+(defun get-corresponding-file (src-path src-full-path src-extension target-path target-extension)
+  (declare (type string src-path src-full-path src-extension target-path target-extension))
+  (concatenate 'string
+	       (ensure-slash-end target-path)
+	       (subseq src-full-path (length (ensure-slash-end src-path)) (- (length src-full-path) (length src-extension)))
+	       target-extension))
+
+(defun create-temp-file (lst)
+  "Create a temporary file with the lst of strings.  Return the file name."
+  (let ((fname (format nil "~0d.tmp" (random 1000000 (make-random-state t)))))
+    (with-open-file (stream fname :direction :output :if-exists :overwrite :if-does-not-exist :create)
+      (loop for file in lst
+	   do (format stream "~a~%" file)))
+    fname))
+
 (defun reset-file-info ()
   (clrhash *file-info*))
 
