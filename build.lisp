@@ -35,7 +35,7 @@
          (target dependencies 
                  code-to-create ... )
              or
-         ('corresponding (target-path target-type) (dependency-path dependency-type)
+         ('corresponding (target-root-path target-type) (dependency-root-path dependency-type)
                  code-to-create ... )
 ")
 
@@ -157,7 +157,10 @@
     lst))
 
 (defmacro depends (target dependencies &rest recipe)
-  "User level function to define dependencies (c-like)"
+  "User level function to define dependencies (c-like)
+   Usage:  (depends  target(s)  dependency(s)  recipe code ... )
+   target and dpendencies may be a string or a list of strings
+"
   (let ((-target- (gensym))
 	(-dependencies- (gensym))
 	(-recipe- (gensym)))
@@ -174,15 +177,20 @@
        (mapc #'add-file ,-dependencies-))))
 
 (defmacro corresponding-depends (target dependencies &rest recipe)
-  "User level function to define corresponding dependencies (java-like)"
+  "User level function to define corresponding dependencies (java-like)
+  Usage:  (corresponding-depends (target-root-path target-type)  (dependency-root-path  dependency-type)    recipe code ...)
+"
+  (declare (type cons target dependencies))
   (let ((-target- (gensym))
 	(-dependencies- (gensym))
 	(-recipe- (gensym)))
-    `(let ((,-target- (makelist (get-value ,target)))
-	   (,-dependencies- (makelist (get-value ,dependencies)))
+    `(let ((,-target- (get-value ,target))
+	   (,-dependencies- (get-value ,dependencies))
 	   (,-recipe- ',recipe))
-       (if (and (null *main-targets*) (null *build-clauses*))
-	   (setq *main-targets* ,-target-))
+       (setq ,-target- (cons (ensure-slash-end (car ,-target-))
+			     (cdr ,-target-)))
+       (setq ,-dependencies- (cons (ensure-slash-end (car ,-dependencies-))
+			     (cdr ,-dependencies-)))
        (setq *build-clauses* (cons (list 'corresponding ,-target- ,-dependencies-
 					 (if (consp ,-recipe-) 
 					     (function (lambda (target dependencies out-of-date-dependencies) ,@recipe))))
@@ -211,12 +219,13 @@
   (declare (type string target))
   (if (null (file-needs-to-be-rebuilt target))
       (loop for clause in *build-clauses*
-	 do (cond ((string-found target (car clause))
-		   (loop for dep in (cadr clause)
-		      do (check-single-target dep)
-			(cond ((is-out-of-date target dep nil)
-			       (make-out-of-date target)
-			       (return-from check-single-target)))))))))
+	 do (if (not (eq 'corresponding (car clause)))
+		(cond ((string-found target (car clause))
+		       (loop for dep in (cadr clause)
+			  do (check-single-target dep)
+			    (cond ((is-out-of-date target dep nil)
+				   (make-out-of-date target)
+				   (return-from check-single-target))))))))))
 
 (defun check-multiple-targets (targets)
   (declare (type cons targets))
@@ -233,22 +242,26 @@
 					; first the ones that have receipies
     (map nil 
 	 #'(lambda (bc)
-	     (cond ((and (cddr bc)	                           ; has receipe
-			 (string-found target (car bc))            ; applicable target
-			 (or (null (cadr bc))                      ; no dependencies
-			     (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
-		    (setq dependencies (join-set dependencies (cadr bc)))
-		    (setq build-clauses (cons bc build-clauses)))))
+	     (if (not (eq 'corresponding (car bc)))
+		 (cond ((and (cddr bc)	                                  ; has receipe
+			     (string-found target (car bc))               ; applicable target
+			     (or (null (cadr bc))                         ; no dependencies
+				 (is-out-of-date target (cadr bc) nil)))  ; has dependencies and some are out-of-date
+			(setq dependencies (join-set dependencies (cadr bc)))
+			(setq build-clauses (cons bc build-clauses))))
+		 (if (corresponding-needs-to-be-built (caddr bc) (cadddr bc) (cadadr bc) (caadr bc)) ; corresponding builds
+		     (setq build-clauses (cons bc build-clauses)))))
 	 *build-clauses*)
 					; now the ones that have no receipies
     (map nil 
 	 #'(lambda (bc)
-	     (cond ((and (null (cddr bc))                          ; doesn't have receipe
-			 (string-found target (car bc))            ; applicable target
-			 (or (null (cadr bc))                      ; no dependencies
-			     (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date  
-		    (setq dependencies (join-set dependencies (cadr bc)))
-		    (setq build-clauses (cons bc build-clauses)))))
+	     (if (not (eq 'corresponding (car bc)))
+		 (cond ((and (null (cddr bc))                             ; doesn't have receipe
+			     (string-found target (car bc))               ; applicable target
+			     (or (null (cadr bc))                         ; no dependencies
+				 (is-out-of-date target (cadr bc) nil)))  ; has dependencies and some are out-of-date
+			(setq dependencies (join-set dependencies (cadr bc)))
+			(setq build-clauses (cons bc build-clauses))))))
 	 *build-clauses*)
     (values build-clauses dependencies)))
 
@@ -289,21 +302,6 @@
   (if *verbose*
       (print-list (cons pgm (flatten args))))
   (run-program pgm (flatten args) :search :wait :output *verbose*))
-
-
-;; (depends "file.o" "file.c" 
-;; 	 (run "gcc" "-c" dependencies)
-;; 	 )
-
-;(format t "~a~%" *build-clauses*)
-
-;(format t "~a~%" (caddar *build-clauses*))
-
-;(run-program "ls" nil :search :wait :output *verbose*)
-
-;; (print (funcall (caddar *build-clauses*) 
-;; 		(caar *build-clauses*) 
-;; 		(cadar *build-clauses*)))
 
 (defun print-hash-table (ht)
   "Print the contents of a hashtable"
@@ -390,13 +388,13 @@
   (let ((p (mismatch str2 str1 :from-end T)))
     (or (not p) (= 0 p))))
 
-(defun get-newer-file-tree (src-type src-root-dir new-type new-path &optional path)
-  "Returns a list of files that exist within an entire directory tree with a given file extension that are newer than corresponding files indicated by new-type new-path
+(defun get-newer-file-tree (dep-type dep-root-dir target-type target-root-path &optional path)
+  "Returns a list of files that exist within an entire directory tree with a given file extension that are newer than corresponding files indicated by target-type target-root-path
    Example:  (get-newer-file-tree \".java\" \"src\" \".class\" \"out/\")
 "
-  (declare (type string src-type src-root-dir new-type new-path))
+  (declare (type string dep-type dep-root-dir target-type target-root-path))
   (if (not path)
-      (setq path src-root-dir))
+      (setq path dep-root-dir))
   (let (res)
     (loop for ent in (directory (concatenate 'string (ensure-slash-end path) "*.*"))
        do (let ((ents (enough-namestring ent))
@@ -405,15 +403,39 @@
 		     (not (eql #\. (char ents 0))))
 		(case (get-name-type ents)
 		  (1			; file
-		   (if (and (string-ends-with-p ents src-type)
-			    (let ((new-file (get-corresponding-file src-root-dir ents src-type new-path new-type)))
+		   (if (and (string-ends-with-p ents dep-type)
+			    (let ((new-file (get-corresponding-file dep-root-dir ents dep-type target-root-path target-type)))
 			      (is-out-of-date-atom new-file ents nil)))
 		       (setq res (cons ents res))))
 		  (2			; directory
-		   (let ((res2 (get-newer-file-tree src-type src-root-dir new-type new-path ents)))
+		   (let ((res2 (get-newer-file-tree dep-type dep-root-dir target-type target-root-path ents)))
 		     (if res2
 			 (setq res (append res res2)))))))))
     res))
+
+(defun corresponding-needs-to-be-built (dep-type dep-root-dir target-type target-root-path &optional path)
+  "Returns t if clause needs to be run, nil otherwise
+   Example:  (corresponding-needs-to-be-built \".java\" \"src\" \".class\" \"out/\")
+"
+  (declare (type string dep-type dep-root-dir target-type target-root-path))
+  (if (not path)
+      (setq path dep-root-dir))
+  (loop for ent in (directory (concatenate 'string (ensure-slash-end path) "*.*"))
+     do (let ((ents (enough-namestring ent))
+	      (src-path (enough-namestring (directory-namestring ent))))
+	  (if (or (not (search "/." ents))
+		  (not (eql #\. (char ents 0))))
+	      (case (get-name-type ents)
+		(1			; file
+		 (if (and (string-ends-with-p ents dep-type)
+			  (let ((new-file (get-corresponding-file dep-root-dir ents dep-type target-root-path target-type)))
+			    (is-out-of-date-atom new-file ents nil)))
+		     (return-from corresponding-needs-to-be-built t)))
+		(2			; directory
+		 (let ((res2 (get-newer-file-tree dep-type dep-root-dir target-type target-root-path ents)))
+		   (if res2
+		       (return-from corresponding-needs-to-be-built t))))))))
+  nil)
 
 (defun get-file-tree (type path)
   "Returns a list of files that exist within an entire directory tree with a given file extension.
