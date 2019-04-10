@@ -346,17 +346,37 @@
     ood-dependencies))
 
 (defun execute-build (cmds)
+  (declare (type cons cmds))
   (loop for cmd in cmds
-     do (if (caddr cmd)
-	    (let ((res (funcall (caddr cmd)
-				(caar cmd)
-				(caadr cmd)
-				(make-ood-dependencies (caar cmd) (caadr cmd)))))
-	      (cond (res
-		     (setq res (sb-impl::process-%exit-code res))
-		     (if (/= res 0)
-			 (progn (format t "Process error; aborting build.~%")
-				(return-from execute-build nil))))))))
+     do (if (not (eq 'corresponding (car cmd))) 
+	    (if (caddr cmd)
+		(let ((res (funcall (caddr cmd)
+				    (caar cmd)
+				    (caadr cmd)
+				    (make-ood-dependencies (caar cmd) (caadr cmd)))))
+		  (cond (res
+			 (setq res (sb-impl::process-%exit-code res))
+			 (if (/= res 0)
+			     (progn (format t "Process error; aborting build.~%")
+				    (return-from execute-build nil)))))))
+	    (if (cadddr cmd)
+		(let* ((ti (cadr cmd))
+		       (di (caddr cmd))
+		       (res (funcall (cadddr cmd)  ; cmd
+				    
+				     (car di)   ; dependency root directory
+				     (car ti)   ; target root directory
+				     (get-newer-file-tree (cadr di) (car di) (cadr ti) (car ti)) ; list of source files that need to be built
+				    
+				    
+				     )))
+		  (cond (res
+			 (setq res (sb-impl::process-%exit-code res))
+			 (if (/= res 0)
+			     (progn (format t "Process error; aborting build.~%")
+				    (return-from execute-build nil))))))
+		)
+	    ))
   t)
 
 (defun ensure-slash-end (name)
