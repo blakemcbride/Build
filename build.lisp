@@ -12,7 +12,9 @@
 (if *debugging* (declaim (optimize (debug 3))))
 
 (if *debugging*
-    (sb-posix:chdir "/home/blake/Build"))
+    (let ((path "/home/blake/Build"))
+      (setf *default-pathname-defaults* (truename path))
+      (sb-posix:chdir path)))
 
 ;(require "asdf")
 ;(require :trivial-features)
@@ -388,9 +390,34 @@
   (let ((p (mismatch str2 str1 :from-end T)))
     (or (not p) (= 0 p))))
 
+(defun get-newer-file-tree (src-type src-root-dir new-type new-path &optional path)
+  "Returns a list of files that exist within an entire directory tree with a given file extension that are newer than corresponding files indicated by new-type new-path
+   Example:  (get-newer-file-tree \".java\" \"src\" \".class\" \"out/\")
+"
+  (declare (type string src-type src-root-dir new-type new-path))
+  (if (not path)
+      (setq path src-root-dir))
+  (let (res)
+    (loop for ent in (directory (concatenate 'string (ensure-slash-end path) "*.*"))
+       do (let ((ents (enough-namestring ent))
+		(src-path (enough-namestring (directory-namestring ent))))
+	    (if (or (not (search "/." ents))
+		     (not (eql #\. (char ents 0))))
+		(case (get-name-type ents)
+		  (1			; file
+		   (if (and (string-ends-with-p ents src-type)
+			    (let ((new-file (get-corresponding-file src-root-dir ents src-type new-path new-type)))
+			      (is-out-of-date-atom new-file ents nil)))
+		       (setq res (cons ents res))))
+		  (2			; directory
+		   (let ((res2 (get-newer-file-tree src-type src-root-dir new-type new-path ents)))
+		     (if res2
+			 (setq res (append res res2)))))))))
+    res))
+
 (defun get-file-tree (type path)
   "Returns a list of files that exist within an entire directory tree with a given file extension.
-   Example:  (get-file-tree \".java\" \".\")
+   Example:  (get-file-tree \".java\" \"src\")
 "
   (declare (type string type path))
   (let (res)
@@ -408,11 +435,11 @@
 			 (setq res (append res res2)))))))))
     res))
 
-(defun get-corresponding-file (src-path src-full-path src-extension target-path target-extension)
-  (declare (type string src-path src-full-path src-extension target-path target-extension))
+(defun get-corresponding-file (src-root-dir src-full-path src-extension target-root-dir target-extension)
+  (declare (type string src-root-dir src-full-path src-extension target-root-dir target-extension))
   (concatenate 'string
-	       (ensure-slash-end target-path)
-	       (subseq src-full-path (length (ensure-slash-end src-path)) (- (length src-full-path) (length src-extension)))
+	       (ensure-slash-end target-root-dir)
+	       (subseq src-full-path (length (ensure-slash-end src-root-dir)) (- (length src-full-path) (length src-extension)))
 	       target-extension))
 
 (defun create-temp-file (lst)
