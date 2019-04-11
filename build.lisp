@@ -346,7 +346,7 @@
     ood-dependencies))
 
 (defun execute-build (cmds)
-  (declare (type cons cmds))
+  (declare (type list cmds))
   (loop for cmd in cmds
      do (if (not (eq 'corresponding (car cmd))) 
 	    (if (caddr cmd)
