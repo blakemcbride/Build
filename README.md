@@ -135,13 +135,7 @@ a build system that uses Common Lisp as its language.
 
 ## Current Status
 
-*build* is currently in its raw infancy and in the process of being created.
-It is unusable.  There are two reasons that it is being put up on *github*
-as follows:
-
-1. Use of a common location for the developers to share code.
-
-2. Publicity for this project to attract more developers.
+*build* is currently able to build C-like and Java-like build scenarios.
 
 *build* is free and open-source and shall remain so.
 
