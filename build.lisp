@@ -35,12 +35,18 @@
          (target dependencies 
                  code-to-create ... )
              or
-         ('corresponding (target-root-path target-type) (dependency-root-path dependency-type)
+         ('corresponding target-name (target-root-path target-type) (dependency-root-path dependency-type)
                  code-to-create ... )
 ")
 
 (defparameter *main-targets* nil
   "This is what is being built.  List of string targets.")
+
+(defmacro caddddr (x)
+  `(car (cddddr ,x)))
+
+(defmacro cadaddr (x)
+  `(car (cdaddr ,x)))
 
 (defun add-file (name)
   "Adds name to *file-info* if it's not already registered
@@ -176,9 +182,9 @@
        (mapc #'add-file ,-target-)
        (mapc #'add-file ,-dependencies-))))
 
-(defmacro corresponding-depends (target dependencies &rest recipe)
+(defmacro corresponding-depends (target-name target dependencies &rest recipe)
   "User level function to define corresponding dependencies (java-like)
-  Usage:  (corresponding-depends (target-root-path target-type)  (dependency-root-path  dependency-type)    recipe code ...)
+  Usage:  (corresponding-depends target-name (target-root-path target-type)  (dependency-root-path  dependency-type)    recipe code ...)
 "
   (declare (type cons target dependencies))
   (let ((-target- (gensym))
@@ -187,13 +193,15 @@
     `(let ((,-target- (get-value ,target))
 	   (,-dependencies- (get-value ,dependencies))
 	   (,-recipe- ',recipe))
+       (if (and (null *main-targets*) (null *build-clauses*))
+	   (setq *main-targets* (list ,target-name)))
        (setq ,-target- (cons (ensure-slash-end (car ,-target-))
 			     (cdr ,-target-)))
        (setq ,-dependencies- (cons (ensure-slash-end (car ,-dependencies-))
-			     (cdr ,-dependencies-)))
-       (setq *build-clauses* (cons (list 'corresponding ,-target- ,-dependencies-
+				   (cdr ,-dependencies-)))
+       (setq *build-clauses* (cons (list 'corresponding ,target-name ,-target- ,-dependencies-
 					 (if (consp ,-recipe-) 
-					     (function (lambda (target dependencies out-of-date-dependencies) ,@recipe))))
+					     (function (lambda (dependency-root target-root source-file-list source-list-file-name) ,@recipe))))
 				   *build-clauses*)))))
 
 (defun main-targets (target)
@@ -243,23 +251,26 @@
     (map nil 
 	 #'(lambda (bc)
 	     (if (not (eq 'corresponding (car bc)))
-		 (cond ((and (cddr bc)	                                  ; has receipe
-			     (string-found target (car bc))               ; applicable target
-			     (or (null (cadr bc))                         ; no dependencies
-				 (is-out-of-date target (cadr bc) nil)))  ; has dependencies and some are out-of-date
+		 (cond ((and (cddr bc)	                                 ; has receipe
+			     (string-found target (car bc))              ; applicable target
+			     (or (null (cadr bc))                        ; no dependencies
+				 (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
 			(setq dependencies (join-set dependencies (cadr bc)))
 			(setq build-clauses (cons bc build-clauses))))
-		 (if (corresponding-needs-to-be-built (caddr bc) (cadddr bc) (cadadr bc) (caadr bc)) ; corresponding builds
-		     (setq build-clauses (cons bc build-clauses)))))
+		 (let ((ti (caddr bc))
+		       (di (cadddr bc)))
+		   (if (and  (equal target (cadr bc))                    ; corresponding builds
+			     (corresponding-needs-to-be-built (cadr di) (car di) (cadr ti) (car ti)))
+		       (setq build-clauses (cons bc build-clauses))))))
 	 *build-clauses*)
 					; now the ones that have no receipies
     (map nil 
 	 #'(lambda (bc)
 	     (if (not (eq 'corresponding (car bc)))
-		 (cond ((and (null (cddr bc))                             ; doesn't have receipe
-			     (string-found target (car bc))               ; applicable target
-			     (or (null (cadr bc))                         ; no dependencies
-				 (is-out-of-date target (cadr bc) nil)))  ; has dependencies and some are out-of-date
+		 (cond ((and (null (cddr bc))                            ; doesn't have receipe
+			     (string-found target (car bc))              ; applicable target
+			     (or (null (cadr bc))                        ; no dependencies
+				 (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
 			(setq dependencies (join-set dependencies (cadr bc)))
 			(setq build-clauses (cons bc build-clauses))))))
 	 *build-clauses*)
@@ -320,6 +331,25 @@
 			       (cdr val)))))
 	     *file-info*)))
 
+(defun create-names (path suffix &rest files)
+    "User level function to add a path and suffix to an arbitrary list of file names"
+  (loop for file in files
+       collect (concatenate 'string path file suffix)))
+
+(defun create-colon-names (path suffix &rest files)
+    "User level function to att a path and suffix to an arbitrary list of file names"
+    (let ((res ""))
+      (loop for file in files
+	 do (setq res (concatenate 'string res ":" path file suffix)))
+      res))
+
+(defun list-names-with-colon (path suffix)
+    "User level function to att a path and suffix to an arbitrary list of file names"
+    (let ((res ""))
+      (loop for file in (directory (concatenate 'string (setq path (ensure-slash-end path)) "*" suffix))
+	 do (setq res (concatenate 'string res ":" path (file-namestring file))))
+      res))
+
 (defun load-build-file ()
   "Load build.build
    Return t if successful
@@ -335,6 +365,7 @@
 	t)
     (t (c)
       (format *error-output* "~%Error loading file build.build~%")
+      (if t (format *error-output* "~s" c))
       nil)))
 
 (defun make-ood-dependencies (targets dependencies)
@@ -359,17 +390,20 @@
 			 (if (/= res 0)
 			     (progn (format t "Process error; aborting build.~%")
 				    (return-from execute-build nil)))))))
-	    (if (cadddr cmd)
-		(let* ((ti (cadr cmd))
-		       (di (caddr cmd))
-		       (res (funcall (cadddr cmd)  ; cmd
+	    (if (caddddr cmd)
+		(let* ((ti (caddr cmd))
+		       (di (cadddr cmd))
+		       (file-list (get-newer-file-tree (cadr di) (car di) (cadr ti) (car ti)))
+		       (input-file-name (create-temp-file file-list))
+		       (res (funcall (caddddr cmd)  ; cmd
 				    
 				     (car di)   ; dependency root directory
 				     (car ti)   ; target root directory
-				     (get-newer-file-tree (cadr di) (car di) (cadr ti) (car ti)) ; list of source files that need to be built
-				    
+				     file-list  ; list of source files that need to be built
+				     input-file-name ; name of temp file hold list of files that need to be built
 				    
 				     )))
+		  (delete-file input-file-name)
 		  (cond (res
 			 (setq res (sb-impl::process-%exit-code res))
 			 (if (/= res 0)
@@ -448,11 +482,12 @@
 	      (case (get-name-type ents)
 		(1			; file
 		 (if (and (string-ends-with-p ents dep-type)
+			  (not (equal "package-info.java" (file-namestring ent))) ; class files don't get built for the file
 			  (let ((new-file (get-corresponding-file dep-root-dir ents dep-type target-root-path target-type)))
 			    (is-out-of-date-atom new-file ents nil)))
 		     (return-from corresponding-needs-to-be-built t)))
 		(2			; directory
-		 (let ((res2 (get-newer-file-tree dep-type dep-root-dir target-type target-root-path ents)))
+		 (let ((res2 (corresponding-needs-to-be-built dep-type dep-root-dir target-type target-root-path ents)))
 		   (if res2
 		       (return-from corresponding-needs-to-be-built t))))))))
   nil)
@@ -495,6 +530,16 @@
 (defun reset-file-info ()
   (clrhash *file-info*))
 
+;; language specific extensions
+
+
+(defmacro build-java (name src-path target-path lib-path)
+  "User level function for building class files from java source files"
+   `(corresponding-depends ,name (,target-path ".class") (,src-path ".java")
+        (ensure-directories-exist target-root)
+        (run "javac" "-cp" (concatenate 'string target-root (list-names-with-colon ,lib-path ".jar")) "-sourcepath" dependency-root "-d" target-root (format nil "@~a" source-list-file-name))))
+;; end
+
 (defun main ()
   (if *debugging*
       (progn (reset-file-info)
@@ -502,10 +547,15 @@
 	     (setq *main-targets* nil)))
   (if (cdr sb-ext:*posix-argv*)
       (setq *main-targets* (cdr sb-ext:*posix-argv*)))
-  (and (load-build-file)
-       (check-multiple-targets *main-targets*)
-       (execute-build (sort-build-clauses *main-targets*))))
+  (if (load-build-file)
+      (cond (*main-targets*
+	     (check-multiple-targets *main-targets*)
+	     (let ((build-clauses (sort-build-clauses *main-targets*)))
+	       (if (consp build-clauses)
+		   (execute-build build-clauses)
+		   (progn (format t "Nothing to do for ")
+			  (print-list *main-targets*)))))
+	    (t (format t "No main target to build~%")))))
 
 (if (not *debugging*)
     (save-lisp-and-die "build" :executable t :toplevel #'main))
-

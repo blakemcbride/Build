@@ -1,11 +1,11 @@
 
-(depends "file" "file.o" 
-	 (run "gcc" "-o" target dependencies))
-	 
-(depends ("file.o" "xxx") "file.h")
 
+(build-java "all-classes" "Kiss/src/main/java" "Kiss/out/production/classes" "Kiss/libs")
+
+
+(depends "file" "file.o" 
+	 (run "gcc" "-o" target out-of-date-dependencies))
+	 
 (depends "file.o" "file.c" 
 	 (run "gcc" "-c" dependencies))
 
-(depends "test" nil
-         (format t "This is the line~%"))
