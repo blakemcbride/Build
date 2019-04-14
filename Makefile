@@ -1,6 +1,6 @@
 
-build : build.lisp Makefile
-	sbcl --disable-ldb --disable-debugger --load build.lisp
+build : build-main.lisp Makefile
+	sbcl --disable-ldb --disable-debugger --load build-main.lisp
 
 realclean : clean
 	rm -f build
