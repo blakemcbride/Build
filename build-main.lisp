@@ -531,10 +531,18 @@
   (clrhash *file-info*))
 
 (defun rm (&rest file-list)
+  "User-level function to remove files"
   (loop for file-spec in file-list
      do (loop for file in (directory file-spec)
 	     do (format t "rm ~a~%" (enough-namestring file))
 	     (delete-file file))))
+
+(defun rmdir (&rest directory-list)
+  "User-level function to remove directories"
+  (loop for dir-spec in directory-list
+     do (loop for dir in (directory dir-spec)
+	     do (format t "rmdir ~a~%" (enough-namestring dir))
+	     (sb-ext:delete-directory dir :recursive t))))
 
 ;; language specific extensions
 
