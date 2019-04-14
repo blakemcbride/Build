@@ -530,6 +530,12 @@
 (defun reset-file-info ()
   (clrhash *file-info*))
 
+(defun rm (&rest file-list)
+  (loop for file-spec in file-list
+     do (loop for file in (directory file-spec)
+	     do (format t "rm ~a~%" (enough-namestring file))
+	     (delete-file file))))
+
 ;; language specific extensions
 
 
