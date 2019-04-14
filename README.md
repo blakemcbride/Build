@@ -139,6 +139,8 @@ a build system that uses Common Lisp as its language.
 
 *build* is free and open-source and shall remain so.
 
+The home for this project is [https://github.com/blakemcbride/Build](https://github.com/blakemcbride/Build)
+
 Please contact blake1024@gmail.com to get involved in this project.
 
 Thank you.
