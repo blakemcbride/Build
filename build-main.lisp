@@ -351,20 +351,20 @@
       res))
 
 (defun load-build-file ()
-  "Load build.build
+  "Load build.lisp
    Return t if successful
    Return nil if not successful"
   (handler-case
       (progn
-	(load "build.build")
-	(format t "build.build has been loaded~%")
+	(load "build.lisp")
+	(format t "build.lisp has been loaded~%")
 	(if *main-targets*
 	    (progn
 	      (format t "Building ")
 	      (print-list *main-targets*)))
 	t)
     (t (c)
-      (format *error-output* "~%Error loading file build.build~%")
+      (format *error-output* "~%Error loading file build.lisp~%")
       (if t (format *error-output* "~s" c))
       nil)))
 
