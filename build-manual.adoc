@@ -1,0 +1,218 @@
+= _BUILD_ Manual
+Blake McBride
+April 14, 2019
+
+_BUILD_ is a build system like make, ant, maven, gradle, etc. that was
+designed to solve many of their problems.  See the _README.md_ file.
+
+All that is needed to use _BUILD_ are two small files as follows:
+
+* build.sh
+* build.lisp
+
+Additionally, a network connection is needed at times.
+
+_build.sh_ is part of the _BUILD_ system.  It bootstraps the build
+process by downloading other files required on an as-needed basis.
+Downloaded files are cached so they need only be downloaded once.
+_build.sh_ then proceeds with the build process as requested.
+
+_build.lisp_ is user-defined.  It describes the specific system to be
+built.  This manual mainly details the contents of that file.
+
+== Lisp
+
+_BUILD_ is written in Lisp.  The rationale for this is given in the
+_README.md_ file.
+
+_build.lisp_ is just plain lisp code with no restrictions.  You have
+the entire language at your disposal (in addition to the facilities
+offered by _BUILD_.).  
+
+Most common programming languages these days (such as C, Java, C#,
+JavaScript, etc.) all have a very similar syntax.  Even Python is not
+too far from a C-like language syntax.  Although the Lisp language
+syntax is quite foreign to the average programmer, the syntax of the
+Lisp language is the simplest of any language and is the easiest to
+work with.  It just take a little getting used to.  Along with its
+unusual syntax, Lisp is one of the most expressive languages
+available.
+
+== The build process
+
+_build.sh_ calls the _build_ program proper which is downloaded and cached
+by _build.sh_.  _build_ performs the following operations:
+
+. load and execute a file named _build.lisp_
+. run the build process that was defined by _build.lisp_ and any command line arguments
+
+_BUILD_ builds the target specified on the command line.  If no target
+is specified on the command line, _BUILD_ attempts to build the first
+_target_ defined in _build.lisp_.
+
+== _build.lisp_
+
+_build.lisp_ may contain *any* lisp code required without restrictions
+or limitations.  In addition to all of Common Lisp, _BUILD_ provides the
+following additional build specific facilities.
+
+=== Nomenclature
+
+* *target* -- this is the file (or files) to be built
+* *dependency* -- this is the file (or files) that a _target_ is dependent on
+* *recipe* -- this is a sequence of commands used to create the _target_ file(s)
+
+In what follows, each command is typed verbatim except that:
+
+* _<name>_ indicates a user specified component
+* _[name]_ indicates an optional user specified component
+* _..._ indicates any number of the preceding
+
+
+=== _depends_
+
+_depends_ is used to define a file dependency and the procedure (or
+recipe) to build the _target_.  Its syntax is as follows:
+
+----
+(depends <target> <dependencies> <recipe>...)
+----
+
+where:
+
+*target* is either a single target specified as a string or a list of
+targets specified by a list of strings grouped in parenthesis.
+
+*dependencies* is either a single dependency specified as a string, 
+a list of dependencies specified by a list of strings grouped in
+parenthesis, or the special symbol _nil_ meaning no dependencies.
+Statements without any _dependencies_ (specified as _nil_) are
+always executed when referenced.
+
+*recipe* is any number (including zero) of Common Lisp statements that
+get executed in order to build the _target_.  An empty _recipe_
+indicates that only a relationship between the _target_ and
+_dependencies_ is being specified and that no particular commands are
+used at this point.  Typically, the exact commands are
+specified in another _depends_ clause.
+
+The following pre-defined variables are available to the _recipe_ commands:
+
+target:: a list containing all of the target file names
+dependencies:: a list containing all of the dependency files (out-of-date or not)
+out-of-date-dependencies:: a list containing all of the out-of-date dependency files
+
+The _depends_ command is typically used in cases where exact relationships
+are specified as is often the case in languages such as C and C++.
+
+=== _corresponding-depends_
+
+_corresponding-depends_ is used to specify a dependency relationship
+that basically says something like: all of these class files are
+dependent on all of these java files.  In other words, each of the
+class files depend on their corresponding java file.  Not
+surprisingly, this command is useful in Java-like situations where a
+directory tree of object files depend on a corresponding tree of
+source files.
+
+----
+(corresponding-depends <target-name> (<target-root-path> <target-type>) 
+                                     (<dependency-root-path> <dependency-type)
+                                     <recipe> ...)
+----
+
+where:
+
+*target-name* is the name of the target as a string.  It is only used
+ for reference purposes.
+
+*target-root-path* is a string representing the relative path of the
+root of where the _target_ files should be placed.
+
+*target-type* is the type of file being generated.  For example, for
+ Java class files it would be ".class".
+ 
+*dependency-root-path* is a string representing the relative path of the
+root of where the _dependency_ files should be placed.
+
+*dependency-type* is the type of file being generated.  For example, for
+ Java class files it would be ".java".
+ 
+*recipe* is any number (including zero) of Common Lisp statements that
+get executed in order to build the _target_ files.  
+
+The following pre-defined variables are available to the _recipe_ commands:
+
+dependency-root:: this is the root directory of the dependency (source) files
+target-root:: the root directory of the target tree
+source-file-list:: this is a list of all of the source files that have out-of-fate target files
+source-list-file-name:: this is the name of a temporary file created by the system that
+contains the paths of all of the out-of-date source files
+
+=== _build-java_
+
+_build-java_ is a language-level extension that makes build Java files easier.
+It is a convinient alternative to _corresponding_depends_ useful in cases
+dealing with Java.
+Other languag-level extensions are easy to create and may be included in the
+_build.lisp_ file.
+
+----
+(build-java <target-name> <source-path> <target-path> <library-path>)
+----
+
+where:
+
+*target-name* is only a string name used for reference
+
+*source-path* is the path to the root of the source file tree
+
+*target-path* is the string path of the root of the target file tree
+
+*library-path* is the path where library jar files are kept
+
+This command will automatically create the correct recipe to build Java files.
+
+
+=== _run_
+
+This command is used in recipies in order to run system-level commands
+such as runninga compiler.
+
+----
+(run <program> <argument>...)
+----
+
+_program_ is run with the supplied _arguments_.  Each argument must be its own string.
+
+=== _rm_
+
+This command is used to remove files.
+
+----
+(rm <filespec>...)
+----
+
+_filespec_ is the string name of the file to be deleted.  Wild cards are permitted.
+
+This command can delete any number of files at a time.  If some of the files
+are not there, they will be ignored.
+
+
+=== _rmdir_
+
+This command is used to remove entire directory trees.
+
+----
+(rmdir <dir-spec>...)
+----
+
+_dir-spec_ is the string name of the directory tree to be deleted.  Wild
+cards are permitted.
+
+This command can delete any number of directories at a time.  If some of the directories
+are not there, they will be ignored.  All files and sub-directories under the directory
+being delete will also be removed.
+
+
+
