@@ -255,3 +255,6 @@ exchanged.
 
 _popd_ pops the last saved directory on the directory stack and changes to it.
 
+----
+(popd)
+----
