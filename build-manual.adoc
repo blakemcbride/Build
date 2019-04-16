@@ -152,9 +152,9 @@ contains the paths of all of the out-of-date source files
 === _build-java_
 
 _build-java_ is a language-level extension that makes build Java files easier.
-It is a convinient alternative to _corresponding_depends_ useful in cases
+It is a convenient alternative to _corresponding_depends_ useful in cases
 dealing with Java.
-Other languag-level extensions are easy to create and may be included in the
+Other language-level extensions are easy to create and may be included in the
 _build.lisp_ file.
 
 ----
@@ -176,8 +176,8 @@ This command will automatically create the correct recipe to build Java files.
 
 === _run_
 
-This command is used in recipies in order to run system-level commands
-such as runninga compiler.
+This command is used in recipes in order to run system-level commands
+such as running compiler.
 
 ----
 (run <program> <argument>...)
@@ -215,4 +215,43 @@ are not there, they will be ignored.  All files and sub-directories under the di
 being delete will also be removed.
 
 
+
+=== _*build*_
+
+_*build*_ is a variable containing a string representing the absolute path of the _BUILD_ program.
+
+
+=== _getcwd_
+
+_getcwd_ returns the current working directory as a string.
+
+----
+(getcwd)
+----
+
+=== _chdir_
+
+_chdir_ is used to change the current working directory.
+
+----
+(chdir <new-path>)
+----
+
+where _new-path_ is a string representing the new path (which may be an absolute or relative path).
+
+==== _pushd_
+
+_pushd_ changes the current directory while saving the previous directory on a LIFO stack.
+
+----
+(pushd <path>)
+----
+
+where _path_ is the _optional_ new directory as a string. If _path_ is
+missing, the current directory and the last on the directory stack are
+exchanged.
+
+==== _popd_
+
+_popd_ pops the last saved directory on the directory stack and changes to it.
 

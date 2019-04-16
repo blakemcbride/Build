@@ -26,6 +26,9 @@
 (defparameter *verbose* t
   "verbose output of commands")
 
+(defparameter *build* nil
+  "The build command")
+
 (defparameter *file-info* (make-hash-table :test 'equal :size 100000)
   "full-file-name - (file-date out-of-date)")
 
@@ -38,6 +41,8 @@
          ('corresponding target-name (target-root-path target-type) (dependency-root-path dependency-type)
                  code-to-create ... )
 ")
+
+(defparameter *directory-stack* nil)
 
 (defparameter *main-targets* nil
   "This is what is being built.  List of string targets.")
@@ -544,6 +549,31 @@
 	     do (format t "rmdir ~a~%" (enough-namestring dir))
 	     (sb-ext:delete-directory dir :recursive t))))
 
+(defun getcwd ()
+  "User-level function to get the current working directory."
+  (sb-posix:getcwd))
+
+(defun chdir (path)
+  "User-level function to change directory."
+  (setf *default-pathname-defaults* (truename path))
+  (sb-posix:chdir path))
+
+(defun pushd (&optional path)
+  "User-level function to change directory and store the previous path on a LIFO stack."
+  (cond ((not path)
+	 (setq path (getcwd))
+	 (popd)
+	 (setq *directory-stack* (cons path *directory-stack*)))
+	(t
+	 (setq *directory-stack* (cons (getcwd) *directory-stack*))
+	 (chdir path))))
+
+(defun popd ()
+  "User-level function to pop the saved path from the path stack."
+  (let ((path (car *directory-stack*)))
+    (setq *directory-stack* (cdr *directory-stack*))
+    (chdir path)))
+
 ;; language specific extensions
 
 
@@ -559,8 +589,9 @@
       (progn (reset-file-info)
 	     (setq *build-clauses* nil)
 	     (setq *main-targets* nil)))
+  (setq *build* (namestring (truename (car sb-ext:*posix-argv*))))
   (if (cdr sb-ext:*posix-argv*)
-      (setq *main-targets* (cdr sb-ext:*posix-argv*)))
+      (setq *main-targets* (namestring (pathname (cdr sb-ext:*posix-argv*)))))
   (if (load-build-file)
       (cond (*main-targets*
 	     (check-multiple-targets *main-targets*)

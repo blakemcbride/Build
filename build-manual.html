@@ -440,6 +440,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#__em_run_em"><em>run</em></a></li>
 <li><a href="#__em_rm_em"><em>rm</em></a></li>
 <li><a href="#__em_rmdir_em"><em>rmdir</em></a></li>
+<li><a href="#__em_build_em"><em>*build*</em></a></li>
+<li><a href="#__em_getcwd_em"><em>getcwd</em></a></li>
+<li><a href="#__em_chdir_em"><em>chdir</em></a></li>
 </ul>
 </li>
 </ul>
@@ -699,9 +702,9 @@ contains the paths of all of the out-of-date source files</p>
 <h3 id="__em_build_java_em"><em>build-java</em></h3>
 <div class="paragraph">
 <p><em>build-java</em> is a language-level extension that makes build Java files easier.
-It is a convinient alternative to <em>corresponding_depends</em> useful in cases
+It is a convenient alternative to <em>corresponding_depends</em> useful in cases
 dealing with Java.
-Other languag-level extensions are easy to create and may be included in the
+Other language-level extensions are easy to create and may be included in the
 <em>build.lisp</em> file.</p>
 </div>
 <div class="listingblock">
@@ -731,8 +734,8 @@ Other languag-level extensions are easy to create and may be included in the
 <div class="sect2">
 <h3 id="__em_run_em"><em>run</em></h3>
 <div class="paragraph">
-<p>This command is used in recipies in order to run system-level commands
-such as runninga compiler.</p>
+<p>This command is used in recipes in order to run system-level commands
+such as running compiler.</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -781,13 +784,66 @@ are not there, they will be ignored.  All files and sub-directories under the di
 being delete will also be removed.</p>
 </div>
 </div>
+<div class="sect2">
+<h3 id="__em_build_em"><em>*build*</em></h3>
+<div class="paragraph">
+<p><em>*build*</em> is a variable containing a string representing the absolute path of the <em>BUILD</em> program.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="__em_getcwd_em"><em>getcwd</em></h3>
+<div class="paragraph">
+<p><em>getcwd</em> returns the current working directory as a string.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>(getcwd)</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="__em_chdir_em"><em>chdir</em></h3>
+<div class="paragraph">
+<p><em>chdir</em> is used to change the current working directory.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>(chdir &lt;new-path&gt;)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>where <em>new-path</em> is a string representing the new path (which may be an absolute or relative path).</p>
+</div>
+<div class="sect3">
+<h4 id="__em_pushd_em"><em>pushd</em></h4>
+<div class="paragraph">
+<p><em>pushd</em> changes the current directory while saving the previous directory on a LIFO stack.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>(pushd &lt;path&gt;)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>where <em>path</em> is the <em>optional</em> new directory as a string. If <em>path</em> is
+missing, the current directory and the last on the directory stack are
+exchanged.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="__em_popd_em"><em>popd</em></h4>
+<div class="paragraph">
+<p><em>popd</em> pops the last saved directory on the directory stack and changes to it.</p>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
 Version 14<br>
-Last updated 2019-04-14 18:16:26 CDT
+Last updated 2019-04-15 20:23:09 CDT
 </div>
 </div>
 </body>
