@@ -1,4 +1,8 @@
 #
+# This shell script bootstraps the BUILD system located at:
+# https://github.com/blakemcbride/Build
+# Written by Blake McBride
+
 if [ ! -f ~/.build/build ]; then
    if [ ! -d ~/.build ]; then
        mkdir ~/.build

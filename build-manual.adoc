@@ -27,7 +27,7 @@ _README.md_ file.
 
 _build.lisp_ is just plain lisp code with no restrictions.  You have
 the entire language at your disposal (in addition to the facilities
-offered by _BUILD_.).  
+offered by _BUILD_).
 
 Most common programming languages these days (such as C, Java, C#,
 JavaScript, etc.) all have a very similar syntax.  Even Python is not
@@ -52,9 +52,15 @@ _target_ defined in _build.lisp_.
 
 == _build.lisp_
 
-_build.lisp_ may contain *any* lisp code required without restrictions
+_build.lisp_ may contain *any* Common Lisp code without restrictions
 or limitations.  In addition to all of Common Lisp, _BUILD_ provides the
-following additional build specific facilities.
+additional build specific facilities described below.
+
+The _BUILD_ specific functions may be grouped into two categories as
+follows:
+
+* functions used at the top level
+* utility functions and variables
 
 === Nomenclature
 
@@ -68,6 +74,11 @@ In what follows, each command is typed verbatim except that:
 * _[name]_ indicates an optional user specified component
 * _..._ indicates any number of the preceding
 
+== Top Level Functions
+
+These are functions that are generally used it the top-level of
+_build.lisp_.  In other words, they're not usually located inside
+other functions (although they may be).
 
 === _depends_
 
@@ -169,9 +180,34 @@ where:
 
 *target-path* is the string path of the root of the target file tree
 
-*library-path* is the path where library jar files are kept
+*library-path* is the _optional_ path where library jar files are
+ kept.  If multiple paths are desired, they may all be included in a
+ list (surrounded by parenthesis).
 
 This command will automatically create the correct recipe to build Java files.
+
+=== _jar-depends_
+
+_jar_depends_ is a convenience function used to build Java JAR files.
+
+----
+(jar-depends <jar-file-with-path>  <root-path-to-jar>
+----
+
+where:
+
+_jar-file-with-path_ is a string representing the path and file name
+of the JAR file to be created.  It can be an absolute or relative
+path.
+
+_root-path-to-jar_ is a string representing the path to the root of
+the directory to be placed in the JAR file.  It too can be an absolute
+or relative path.
+
+== Utility Functions and Variables
+
+These are functions normally used in the _recipe_ section of the
+top-level functions but may also be used elsewhere.
 
 
 === _run_

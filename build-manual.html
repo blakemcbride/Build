@@ -434,9 +434,18 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#__em_build_lisp_em"><em>build.lisp</em></a>
 <ul class="sectlevel2">
 <li><a href="#_nomenclature">Nomenclature</a></li>
+</ul>
+</li>
+<li><a href="#_top_level_functions">Top Level Functions</a>
+<ul class="sectlevel2">
 <li><a href="#__em_depends_em"><em>depends</em></a></li>
 <li><a href="#__em_corresponding_depends_em"><em>corresponding-depends</em></a></li>
 <li><a href="#__em_build_java_em"><em>build-java</em></a></li>
+<li><a href="#__em_jar_depends_em"><em>jar-depends</em></a></li>
+</ul>
+</li>
+<li><a href="#_utility_functions_and_variables">Utility Functions and Variables</a>
+<ul class="sectlevel2">
 <li><a href="#__em_run_em"><em>run</em></a></li>
 <li><a href="#__em_rm_em"><em>rm</em></a></li>
 <li><a href="#__em_rmdir_em"><em>rmdir</em></a></li>
@@ -493,7 +502,7 @@ built.  This manual mainly details the contents of that file.</p>
 <div class="paragraph">
 <p><em>build.lisp</em> is just plain lisp code with no restrictions.  You have
 the entire language at your disposal (in addition to the facilities
-offered by <em>BUILD</em>.).</p>
+offered by <em>BUILD</em>).</p>
 </div>
 <div class="paragraph">
 <p>Most common programming languages these days (such as C, Java, C#,
@@ -535,9 +544,23 @@ is specified on the command line, <em>BUILD</em> attempts to build the first
 <h2 id="__em_build_lisp_em"><em>build.lisp</em></h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><em>build.lisp</em> may contain <strong>any</strong> lisp code required without restrictions
+<p><em>build.lisp</em> may contain <strong>any</strong> Common Lisp code without restrictions
 or limitations.  In addition to all of Common Lisp, <em>BUILD</em> provides the
-following additional build specific facilities.</p>
+additional build specific facilities described below.</p>
+</div>
+<div class="paragraph">
+<p>The <em>BUILD</em> specific functions may be grouped into two categories as
+follows:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>functions used at the top level</p>
+</li>
+<li>
+<p>utility functions and variables</p>
+</li>
+</ul>
 </div>
 <div class="sect2">
 <h3 id="_nomenclature">Nomenclature</h3>
@@ -570,6 +593,16 @@ following additional build specific facilities.</p>
 </li>
 </ul>
 </div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_top_level_functions">Top Level Functions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>These are functions that are generally used it the top-level of
+<em>build.lisp</em>.  In other words, they&#8217;re not usually located inside
+other functions (although they may be).</p>
 </div>
 <div class="sect2">
 <h3 id="__em_depends_em"><em>depends</em></h3>
@@ -725,11 +758,46 @@ Other language-level extensions are easy to create and may be included in the
 <p><strong>target-path</strong> is the string path of the root of the target file tree</p>
 </div>
 <div class="paragraph">
-<p><strong>library-path</strong> is the path where library jar files are kept</p>
+<p><strong>library-path</strong> is the <em>optional</em> path where library jar files are
+ kept.  If multiple paths are desired, they may all be included in a
+ list (surrounded by parenthesis).</p>
 </div>
 <div class="paragraph">
 <p>This command will automatically create the correct recipe to build Java files.</p>
 </div>
+</div>
+<div class="sect2">
+<h3 id="__em_jar_depends_em"><em>jar-depends</em></h3>
+<div class="paragraph">
+<p><em>jar_depends</em> is a convenience function used to build Java JAR files.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>(jar-depends &lt;jar-file-with-path&gt;  &lt;root-path-to-jar&gt;</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>where:</p>
+</div>
+<div class="paragraph">
+<p><em>jar-file-with-path</em> is a string representing the path and file name
+of the JAR file to be created.  It can be an absolute or relative
+path.</p>
+</div>
+<div class="paragraph">
+<p><em>root-path-to-jar</em> is a string representing the path to the root of
+the directory to be placed in the JAR file.  It too can be an absolute
+or relative path.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_utility_functions_and_variables">Utility Functions and Variables</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>These are functions normally used in the <em>recipe</em> section of the
+top-level functions but may also be used elsewhere.</p>
 </div>
 <div class="sect2">
 <h3 id="__em_run_em"><em>run</em></h3>
@@ -848,7 +916,7 @@ exchanged.</p>
 <div id="footer">
 <div id="footer-text">
 Version 14<br>
-Last updated 2019-04-15 20:29:46 CDT
+Last updated 2019-04-16 20:42:28 CDT
 </div>
 </div>
 </body>

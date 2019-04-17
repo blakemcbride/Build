@@ -252,11 +252,11 @@
 "
   (declare (type string target))
   (let (build-clauses dependencies)
-					; first the ones that have receipies
+					; first the ones that have recipies
     (map nil 
 	 #'(lambda (bc)
 	     (if (not (eq 'corresponding (car bc)))
-		 (cond ((and (cddr bc)	                                 ; has receipe
+		 (cond ((and (cddr bc)	                                 ; has recipe
 			     (string-found target (car bc))              ; applicable target
 			     (or (null (cadr bc))                        ; no dependencies
 				 (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
@@ -268,11 +268,11 @@
 			     (corresponding-needs-to-be-built (cadr di) (car di) (cadr ti) (car ti)))
 		       (setq build-clauses (cons bc build-clauses))))))
 	 *build-clauses*)
-					; now the ones that have no receipies
+					; now the ones that have no recipies
     (map nil 
 	 #'(lambda (bc)
 	     (if (not (eq 'corresponding (car bc)))
-		 (cond ((and (null (cddr bc))                            ; doesn't have receipe
+		 (cond ((and (null (cddr bc))                            ; doesn't have recipe
 			     (string-found target (car bc))              ; applicable target
 			     (or (null (cadr bc))                        ; no dependencies
 				 (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
@@ -348,12 +348,31 @@
 	 do (setq res (concatenate 'string res ":" path file suffix)))
       res))
 
-(defun list-names-with-colon (path suffix)
-    "User level function to att a path and suffix to an arbitrary list of file names"
-    (let ((res ""))
-      (loop for file in (directory (concatenate 'string (setq path (ensure-slash-end path)) "*" suffix))
-	 do (setq res (concatenate 'string res ":" path (file-namestring file))))
-      res))
+(defmacro list-names-with-colon (path suffix)
+  "User level function to add a path and suffix to an arbitrary list of file names
+   path can be nil, a string, or a list of strings
+"
+  (let ((-path- (gensym))
+	(-suffix- (gensym)))
+    `(let ((,-path- (get-value ,path))
+	   (,-suffix- (get-value ,suffix)))
+       (if ,-path-
+		 (let ((res "")
+		       (paths (makelist ,-path-)))
+		   (loop for single-path in paths
+		      do (loop for file in (directory (concatenate 'string (setq single-path (ensure-slash-end single-path)) "*" ,-suffix-))
+			    do (setq res (concatenate 'string res ":" single-path (file-namestring file)))))
+		   res)
+		 ""))))
+
+(defmacro create-maven-path (&rest paths)
+  (let ((-paths- (gensym)))
+    `(let ((,-paths- (get-value ',paths))
+	   (mvn-dir (concatenate 'string (namestring (user-homedir-pathname)) ".m2/repository/"))
+	   res)
+       (loop for path in ,-paths-
+	    do (setq res (cons (concatenate 'string mvn-dir path) res)))
+       res)))
 
 (defun load-build-file ()
   "Load build.lisp
@@ -400,13 +419,11 @@
 		       (di (cadddr cmd))
 		       (file-list (get-newer-file-tree (cadr di) (car di) (cadr ti) (car ti)))
 		       (input-file-name (create-temp-file file-list))
-		       (res (funcall (caddddr cmd)  ; cmd
-				    
-				     (car di)   ; dependency root directory
-				     (car ti)   ; target root directory
-				     file-list  ; list of source files that need to be built
+		       (res (funcall (caddddr cmd)   ; cmd
+				     (car di)        ; dependency root directory
+				     (car ti)        ; target root directory
+				     file-list       ; list of source files that need to be built
 				     input-file-name ; name of temp file hold list of files that need to be built
-				    
 				     )))
 		  (delete-file input-file-name)
 		  (cond (res
@@ -417,6 +434,31 @@
 		)
 	    ))
   t)
+
+(defun absolute-path (path)
+  "Takes a relative path and returns an absolute path"
+  (cond ((eql (aref path 0) #\/)
+	 path)
+	((and (= 1 (length path))
+	      (eql (aref path 0) #\.))
+	 (concatenate 'string (getcwd) "/"))
+	((and (= 2 (length path))
+	      (string= path "./"))
+	 (concatenate 'string (getcwd) "/"))
+	((and (< 2 (length path))
+	      (eql (aref path 0) #\.)
+	      (eql (aref path 1) #\/))
+	 (concatenate 'string (getcwd) path))
+	(t
+	 (concatenate 'string (getcwd) "/" path))))
+
+(defun all-entries-in-current-directory ()
+  "Returns all the files and directories in the current directory"
+  (loop for ent in (directory "*.*")
+     collect (let ((fn (file-namestring ent)))
+	       (if (zerop (length fn))
+		   (enough-namestring ent)
+		   fn))))
 
 (defun ensure-slash-end (name)
   (declare (type string name))
@@ -577,11 +619,23 @@
 ;; language specific extensions
 
 
-(defmacro build-java (name src-path target-path lib-path)
+(defmacro build-java (name src-path target-path &optional lib-path)
   "User level function for building class files from java source files"
    `(corresponding-depends ,name (,target-path ".class") (,src-path ".java")
         (ensure-directories-exist target-root)
         (run "javac" "-cp" (concatenate 'string target-root (list-names-with-colon ,lib-path ".jar")) "-sourcepath" dependency-root "-d" target-root (format nil "@~a" source-list-file-name))))
+
+(defmacro jar-depends (jar-with-path  root-path-to-jar)
+  "User-level convenience function for building jar files"
+  (let ((-root-path-to-jar- (gensym))
+        (-jar-with-path- (gensym)))
+   `(let ((,-root-path-to-jar- ,root-path-to-jar)
+          (,-jar-with-path- ,jar-with-path))
+       (depends ,-jar-with-path- (get-file-tree ,-root-path-to-jar-)
+         (pushd ,-root-path-to-jar-)
+         (apply #'run (cons "jar" (cons "cvf" (cons (absolute-path (car target)) (all-entries-in-current-directory)))))
+         (popd)))))
+
 ;; end
 
 (defun main ()
@@ -604,3 +658,4 @@
 
 (if (not *debugging*)
     (save-lisp-and-die "build" :executable t :toplevel #'main))
+
