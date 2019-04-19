@@ -42,6 +42,14 @@
                  code-to-create ... )
 ")
 
+(defun is-corresponding-tag (tag)
+  "Return t if tag is a tag for a correponding dependency"
+  (loop for clause in *build-clauses*
+     do (if (and (eq 'corresponding (car clause))
+		 (string= tag (cadr clause)))
+	    (return-from is-corresponding-tag t)))
+  nil)
+
 (defparameter *directory-stack* nil)
 
 (defparameter *main-targets* nil
@@ -265,7 +273,8 @@
 		 (let ((ti (caddr bc))
 		       (di (cadddr bc)))
 		   (if (and  (equal target (cadr bc))                    ; corresponding builds
-			     (corresponding-needs-to-be-built (cadr di) (car di) (cadr ti) (car ti)))
+			     (or (file-needs-to-be-rebuilt (cadr bc))
+				 (corresponding-needs-to-be-built (cadr di) (car di) (cadr ti) (car ti))))
 		       (setq build-clauses (cons bc build-clauses))))))
 	 *build-clauses*)
 					; now the ones that have no recipies
@@ -317,7 +326,11 @@
 (defun run (pgm &rest args)
   (if *verbose*
       (print-list (cons pgm (flatten args))))
-  (run-program pgm (flatten args) :search :wait :output *verbose*))
+  (let* ((res (run-program pgm (flatten args) :search :wait :output *verbose*))
+	 (rc (sb-impl::process-%exit-code res)))
+    (cond ((/= rc 0)
+	   (format t "Process error; aborting build.~%")
+	   (error "Run command failed.")))))
 
 (defun print-hash-table (ht)
   "Print the contents of a hashtable"
@@ -381,8 +394,9 @@
   (handler-case
       (progn
 	(load "build.lisp")
-	(format t "build.lisp has been loaded~%")
-	(if *main-targets*
+	(if *verbose*
+	    (format t "build.lisp has been loaded~%"))
+	(if (and *verbose* *main-targets*)
 	    (progn
 	      (format t "Building ")
 	      (print-list *main-targets*)))
@@ -405,34 +419,22 @@
   (loop for cmd in cmds
      do (if (not (eq 'corresponding (car cmd))) 
 	    (if (caddr cmd)
-		(let ((res (funcall (caddr cmd)
-				    (caar cmd)
-				    (caadr cmd)
-				    (make-ood-dependencies (caar cmd) (caadr cmd)))))
-		  (cond (res
-			 (setq res (sb-impl::process-%exit-code res))
-			 (if (/= res 0)
-			     (progn (format t "Process error; aborting build.~%")
-				    (return-from execute-build nil)))))))
+		(funcall (caddr cmd)
+			 (caar cmd)
+			 (caadr cmd)
+			 (make-ood-dependencies (caar cmd) (caadr cmd))))
 	    (if (caddddr cmd)
 		(let* ((ti (caddr cmd))
 		       (di (cadddr cmd))
 		       (file-list (get-newer-file-tree (cadr di) (car di) (cadr ti) (car ti)))
-		       (input-file-name (create-temp-file file-list))
-		       (res (funcall (caddddr cmd)   ; cmd
+		       (input-file-name (create-temp-file file-list)))
+		  (funcall (caddddr cmd)             ; cmd
 				     (car di)        ; dependency root directory
 				     (car ti)        ; target root directory
 				     file-list       ; list of source files that need to be built
 				     input-file-name ; name of temp file hold list of files that need to be built
-				     )))
-		  (delete-file input-file-name)
-		  (cond (res
-			 (setq res (sb-impl::process-%exit-code res))
-			 (if (/= res 0)
-			     (progn (format t "Process error; aborting build.~%")
-				    (return-from execute-build nil))))))
-		)
-	    ))
+				     )
+		  (delete-file input-file-name)))))
   t)
 
 (defun absolute-path (path)
@@ -501,7 +503,7 @@
        do (let ((ents (enough-namestring ent))
 		(src-path (enough-namestring (directory-namestring ent))))
 	    (if (or (not (search "/." ents))
-		     (not (eql #\. (char ents 0))))
+		    (not (eql #\. (char ents 0))))
 		(case (get-name-type ents)
 		  (1			; file
 		   (if (and (string-ends-with-p ents dep-type)
@@ -581,14 +583,16 @@
   "User-level function to remove files"
   (loop for file-spec in file-list
      do (loop for file in (directory file-spec)
-	     do (format t "rm ~a~%" (enough-namestring file))
+	   do (if *verbose*
+		  (format t "rm ~a~%" (enough-namestring file)))
 	     (delete-file file))))
 
 (defun rmdir (&rest directory-list)
   "User-level function to remove directories"
   (loop for dir-spec in directory-list
      do (loop for dir in (directory dir-spec)
-	     do (format t "rmdir ~a~%" (enough-namestring dir))
+	   do (if *verbose*
+		  (format t "rmdir ~a~%" (enough-namestring dir)))
 	     (sb-ext:delete-directory dir :recursive t))))
 
 (defun getcwd ()
@@ -597,7 +601,9 @@
 
 (defun chdir (path)
   "User-level function to change directory."
-  (setf *default-pathname-defaults* (truename path))
+  (if *verbose*
+      (format t "chdir ~a~%" path))
+  (setq *default-pathname-defaults* (truename path))
   (sb-posix:chdir path))
 
 (defun pushd (&optional path)
@@ -636,6 +642,27 @@
          (apply #'run (cons "jar" (cons "cvf" (cons (absolute-path (car target)) (all-entries-in-current-directory)))))
          (popd)))))
 
+(defmacro build-children (&rest dirs)
+  "Recipe function used to build a series of child projects"
+  (let ((-dirs- (gensym)))
+    `(let ((,-dirs- ',dirs))
+       (loop for dir in ,-dirs-
+	  do (pushd dir)
+	    (run *build*)
+	    (popd)))))
+
+(defun repl ()
+  (format t "~%Use :exit to quit~%~%")
+  (loop
+     (format t "BUILD> ")
+     (force-output)
+     (let ((expr (read)))
+       (cond ((eq expr :exit)
+	      (return))
+	     (t
+	      (format t "~s~%" (eval expr))
+	      (force-output))))))
+
 ;; end
 
 (defun main ()
@@ -645,7 +672,7 @@
 	     (setq *main-targets* nil)))
   (setq *build* (namestring (truename (car sb-ext:*posix-argv*))))
   (if (cdr sb-ext:*posix-argv*)
-      (setq *main-targets* (namestring (pathname (cdr sb-ext:*posix-argv*)))))
+      (setq *main-targets* (cdr sb-ext:*posix-argv*)))
   (if (load-build-file)
       (cond (*main-targets*
 	     (check-multiple-targets *main-targets*)
