@@ -257,6 +257,11 @@ being delete will also be removed.
 _*build*_ is a variable containing a string representing the absolute path of the _BUILD_ program.
 
 
+=== _*build-args*_
+
+_*build-args*_ is a variable containing a list of the arguments passed to the _BUILD_ program.
+
+
 === _getcwd_
 
 _getcwd_ returns the current working directory as a string.
