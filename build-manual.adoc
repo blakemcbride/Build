@@ -191,7 +191,7 @@ This command will automatically create the correct recipe to build Java files.
 _jar_depends_ is a convenience function used to build Java JAR files.
 
 ----
-(jar-depends <jar-file-with-path>  <root-path-to-jar>
+(jar-depends <jar-file-with-path>  <root-path-to-jar>)
 ----
 
 where:
