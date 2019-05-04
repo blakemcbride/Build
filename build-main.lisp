@@ -29,6 +29,9 @@
 (defparameter *build* nil
   "The build command")
 
+(defparameter *build-args* nil
+  "The arguments passed to the build program")
+
 (defparameter *file-info* (make-hash-table :test 'equal :size 100000)
   "full-file-name - (file-date out-of-date)")
 
@@ -648,7 +651,7 @@
     `(let ((,-dirs- ',dirs))
        (loop for dir in ,-dirs-
 	  do (pushd dir)
-	    (run *build*)
+	    (run *build* *build-args*)
 	    (popd)))))
 
 (defun repl ()
@@ -671,6 +674,7 @@
 	     (setq *build-clauses* nil)
 	     (setq *main-targets* nil)))
   (setq *build* (namestring (truename (car sb-ext:*posix-argv*))))
+  (setq *build-args* (cdr sb-ext:*posix-argv*))
   (if (cdr sb-ext:*posix-argv*)
       (setq *main-targets* (cdr sb-ext:*posix-argv*)))
   (if (load-build-file)
