@@ -86,7 +86,7 @@ _depends_ is used to define a file dependency and the procedure (or
 recipe) to build the _target_.  Its syntax is as follows:
 
 ----
-(depends <target> <dependencies> <recipe>...)
+(depends <target> <dependencies> [<recipe>...])
 ----
 
 where:
@@ -128,8 +128,9 @@ source files.
 
 ----
 (corresponding-depends <target-name> (<target-root-path> <target-type>) 
-                                     (<dependency-root-path> <dependency-type)
-                                     <recipe> ...)
+                                     (<dependency-root-path> <dependency-type>)
+				     <other-dependencies>
+                                     [<recipe> ...])
 ----
 
 where:
@@ -149,6 +150,9 @@ root of where the _dependency_ files should be placed.
 *dependency-type* is the type of file being generated.  For example, for
  Java class files it would be ".java".
  
+*other-dependencies* is either *nil*, a string dependency, or a list
+ of string dependencies.
+ 
 *recipe* is any number (including zero) of Common Lisp statements that
 get executed in order to build the _target_ files.  
 
@@ -162,14 +166,14 @@ contains the paths of all of the out-of-date source files
 
 === _build-java_
 
-_build-java_ is a language-level extension that makes build Java files easier.
-It is a convenient alternative to _corresponding_depends_ useful in cases
+_build-java_ is a language-level extension that makes building Java files easier.
+It is a convenient alternative to _corresponding-depends_ useful in cases
 dealing with Java.
 Other language-level extensions are easy to create and may be included in the
 _build.lisp_ file.
 
 ----
-(build-java <target-name> <source-path> <target-path> <library-path>)
+(build-java <target-name> <source-path> <target-path> [:lib-path <library-path>] [:other-deps <other-dependencies>])
 ----
 
 where:
@@ -183,6 +187,11 @@ where:
 *library-path* is the _optional_ path where library jar files are
  kept.  If multiple paths are desired, they may all be included in a
  list (surrounded by parenthesis).
+
+*other-dependencies* is an _optional_ list of other dependencies.  A
+ single other dependency need not be a list but if multiple
+ dependencies are desired, they must all be included in a list
+ (surrounded by parenthesis).
 
 This command will automatically create the correct recipe to build Java files.
 

@@ -1,8 +1,8 @@
 
 ; build.lisp
-; written by Blake McBride
+; written by Blake McBride (blake1024@gmail.com)
 
-(defparameter *debugging* nil)
+(defparameter *debugging* t)
 
 (require :sb-posix)
 
@@ -11,6 +11,7 @@
 
 (if *debugging* (declaim (optimize (debug 3))))
 
+; Set root directory for tests
 (if *debugging*
     (let ((path "/home/blake/Build"))
       (setf *default-pathname-defaults* (truename path))
@@ -32,26 +33,83 @@
 (defparameter *build-args* nil
   "The arguments passed to the build program")
 
-(defparameter *file-info* (make-hash-table :test 'equal :size 100000)
-  "full-file-name - (file-date out-of-date)")
+(defparameter *target-info* (make-hash-table :test 'equal :size 100000)
+  "full-target-name - (file-date build-required build-required-known)")
 
 (defparameter *build-clauses* nil
      "list of dependencies
       Each element looks like: 
-         (target dependencies 
-                 code-to-create ... )
+         ('dependency target dependencies recipe-lambda)
              or
          ('corresponding target-name (target-root-path target-type) (dependency-root-path dependency-type)
-                 code-to-create ... )
+                 (other-dependencies)
+                 recipe-lambda)
 ")
 
-(defun is-corresponding-tag (tag)
-  "Return t if tag is a tag for a correponding dependency"
-  (loop for clause in *build-clauses*
-     do (if (and (eq 'corresponding (car clause))
-		 (string= tag (cadr clause)))
-	    (return-from is-corresponding-tag t)))
-  nil)
+; build clause accessor macros
+
+(defmacro is-dependency (bc)
+  "Return non-null if build clause is a corresponding build clause"
+  `(eq 'dependency (car ,bc)))
+
+(defmacro is-corresponding (bc)
+  "Return non-null if build clause is a corresponding build clause"
+  `(eq 'corresponding (car ,bc)))
+
+; for dependency type
+
+(defmacro d-target (bc)
+  "Get target from build clause"
+  `(cadr ,bc))
+
+(defmacro d-deps (bc)
+  "get the dependencies from a build clause"
+  `(caddr ,bc))
+
+(defmacro d-recipe (bc)
+  "Gets recipe code from a build clause"
+  `(cadddr ,bc))
+
+(defmacro d-has-recipe (bc)
+  "Is there a recipe?"
+  `(cdddr ,bc))
+
+; for corresponding type
+
+(defmacro c-target (bc)
+  "Get target name from a corresponding build clause"
+  `(cadr ,bc))
+
+(defmacro c-target-info (bc)
+  "Get target info from corresponding build clause"
+  `(caddr ,bc))
+
+(defmacro c-dep-info (bc)
+  "Get dependency info from corresponding build clause"
+  `(cadddr ,bc))
+
+(defmacro c-other-deps (bc)
+  "Gets other-dependencies from a corresponding build clause"
+  `(car (cddddr ,bc)))
+
+(defmacro c-recipe (bc)
+  "Gets the recipe from a corresponding build clause"
+  `(cadr (cddddr ,bc)))
+
+(defmacro c-has-recipe (bc)
+  "Is there a recipe?"
+  `(cdr (cddddr ,bc)))
+
+(defmacro c-root-path (x)
+  "Return the target or dependency root path"
+  `(car ,x))
+
+(defmacro c-type (x)
+  "Return the target or dependency type"
+  `(cadr ,x))
+
+;; end
+
 
 (defparameter *directory-stack* nil)
 
@@ -64,22 +122,28 @@
 (defmacro cadaddr (x)
   `(car (cdaddr ,x)))
 
-(defun add-file (name)
-  "Adds name to *file-info* if it's not already registered
+(defun add-target (name)
+  "Adds name to *target-info* if it's not already registered
    Returns the name-specific node
 "
   (declare (type string name))
-  (let ((node (gethash name *file-info*)))
+  (let ((node (gethash name *target-info*)))
     (if (not node)
 	(progn
-	  (setq node (list nil nil))
-	  (setf (gethash name *file-info*) node)))
+	  (setq node (list nil nil nil))
+	  (setf (gethash name *target-info*) node)))
     node))
 
-(defun make-out-of-date (file)
-  (declare (type string file))
-  (let ((node (add-file file)))
-    (setf (cadr node) t)))
+(defun make-out-of-date (target)
+  (declare (type string target))
+  (let ((node (add-target target)))
+    (setf (caddr node) t)  ; it is known
+    (setf (cadr node) t))) ; to be out of date
+
+(defun make-not-out-of-date (target)
+  (declare (type string target))
+  (let ((node (add-target target)))
+    (setf (caddr node) t)))
 
 (defun get-current-file-time (name)
   (let* ((cwd (concatenate 'string (sb-posix:getcwd) "/"))
@@ -88,14 +152,14 @@
 	(sb-posix:stat-mtime (sb-posix:stat path))
 	0)))
 
-(defun get-file-node (name force)
-  "Adds name to *file-info* if it's not already registered
-   Updates the file time info if unknown or force
+(defun get-target-node (name force)
+  "Adds name to *target-info* if it's not already registered
+   Updates the target time info if unknown or force
    Returns the node
 "
   (declare (type string name)
 	   (type boolean force))
-  (let ((node (add-file name)))
+  (let ((node (add-target name)))
     (if (or force 
 	    (null (car node))) ; no stored date
 	(setf (car node)
@@ -103,15 +167,21 @@
     node))
 
 (defun get-file-date (name force)
-  "Adds name to *file-info* if it's not already registered
+  "Adds name to *target-info* if it's not already registered
    Updates the file time info if unknown or force
    Returns the file time
 "
-  (car (get-file-node name force)))
+  (car (get-target-node name force)))
 
-(defun file-needs-to-be-rebuilt (file)
-  (declare (type string file))
-  (cadr (get-file-node file nil)))
+(defun target-rebuild-p (target)
+  "Return t if the target is set to be rebuilt"
+  (declare (type string target))
+  (cadr (get-target-node target nil)))
+
+(defun target-rebuild-known (target)
+  "Return t if it is known (already been checked) if a target needs to be built"
+  (declare (type string target))
+  (caddr (get-target-node target nil)))
 
 (defun is-out-of-date-atom (target dep force)
   "Both target and dep are string file names.
@@ -119,8 +189,8 @@
 "
   (declare (type string target dep)
 	   (type boolean force))
-  (let* ((tn (get-file-node target force))
-	 (dn (get-file-node dep force))
+  (let* ((tn (get-target-node target force))
+	 (dn (get-target-node dep force))
 	 (td (car tn))
 	 (dd (car dn)))
     (or (cadr tn)
@@ -135,13 +205,12 @@
 "
   (declare (type string target)
 	   (type boolean force))
-  (block ood
-    (cond ((consp dep)
-	   (loop for d in dep
-	      do (if (is-out-of-date-atom target d force)
-		     (return-from ood t)))
-	   nil)
-	  (t (is-out-of-date-atom target dep force)))))
+  (cond ((consp dep)
+	 (loop for d in dep
+	    do (if (is-out-of-date-atom target d force)
+		   (return-from is-out-of-date t)))
+	 nil)
+	(dep (is-out-of-date-atom target dep force))))
 
 (defmacro not-out-of-date (target dep force)
   `(null (is-out-of-date ,target ,dep ,force)))
@@ -181,33 +250,36 @@
 (defmacro depends (target dependencies &rest recipe)
   "User level function to define dependencies (c-like)
    Usage:  (depends  target(s)  dependency(s)  recipe code ... )
-   target and dpendencies may be a string or a list of strings
+   target and dependencies may be a string or a list of strings
 "
   (let ((-target- (gensym))
 	(-dependencies- (gensym))
 	(-recipe- (gensym)))
+    (break)
     `(let ((,-target- (makelist (get-value ,target)))
 	   (,-dependencies- (makelist (get-value ,dependencies)))
 	   (,-recipe- ',recipe))
        (if (and (null *main-targets*) (null *build-clauses*))
 	   (setq *main-targets* ,-target-))
-       (setq *build-clauses* (cons (list ,-target- ,-dependencies-
+       (setq *build-clauses* (cons (list 'dependency ,-target- ,-dependencies-
 					 (if (consp ,-recipe-) 
 					     (function (lambda (target dependencies out-of-date-dependencies) ,@recipe))))
 				   *build-clauses*))
-       (mapc #'add-file ,-target-)
-       (mapc #'add-file ,-dependencies-))))
+       (mapc #'add-target ,-target-)
+       (mapc #'add-target ,-dependencies-))))
 
-(defmacro corresponding-depends (target-name target dependencies &rest recipe)
+(defmacro corresponding-depends (target-name target dependencies other-dependencies &rest recipe)
   "User level function to define corresponding dependencies (java-like)
-  Usage:  (corresponding-depends target-name (target-root-path target-type)  (dependency-root-path  dependency-type)    recipe code ...)
+  Usage:  (corresponding-depends target-name (target-root-path target-type)  (dependency-root-path  dependency-type)  other-dependencies  recipe-code ...)
 "
   (declare (type cons target dependencies))
   (let ((-target- (gensym))
 	(-dependencies- (gensym))
+	(-other-dependencies- (gensym))
 	(-recipe- (gensym)))
     `(let ((,-target- (get-value ,target))
 	   (,-dependencies- (get-value ,dependencies))
+	   (,-other-dependencies- (get-value ,other-dependencies))
 	   (,-recipe- ',recipe))
        (if (and (null *main-targets*) (null *build-clauses*))
 	   (setq *main-targets* (list ,target-name)))
@@ -215,7 +287,7 @@
 			     (cdr ,-target-)))
        (setq ,-dependencies- (cons (ensure-slash-end (car ,-dependencies-))
 				   (cdr ,-dependencies-)))
-       (setq *build-clauses* (cons (list 'corresponding ,target-name ,-target- ,-dependencies-
+       (setq *build-clauses* (cons (list 'corresponding ,target-name ,-target- ,-dependencies- (makelist ,-other-dependencies-)
 					 (if (consp ,-recipe-) 
 					     (function (lambda (dependency-root target-root source-file-list source-list-file-name) ,@recipe))))
 				   *build-clauses*)))))
@@ -241,11 +313,17 @@
 
 (defun check-single-target (target)
   (declare (type string target))
-  (if (null (file-needs-to-be-rebuilt target))
+  (if (null (target-rebuild-p target))
       (loop for clause in *build-clauses*
-	 do (if (not (eq 'corresponding (car clause)))
-		(cond ((string-found target (car clause))
-		       (loop for dep in (cadr clause)
+	 do (if (is-corresponding clause)
+		(cond ((string-found target (c-target clause))
+		       (loop for dep in (c-other-deps clause)
+			  do (check-single-target dep)
+			    (cond ((target-rebuild-p dep)
+				   (make-out-of-date target)
+				   (return-from check-single-target))))))
+		(cond ((string-found target (d-target clause))
+		       (loop for dep in (d-deps clause)
 			  do (check-single-target dep)
 			    (cond ((is-out-of-date target dep nil)
 				   (make-out-of-date target)
@@ -258,7 +336,7 @@
   t)
 
 (defun sort-single-dependency (target)
-  "Go through *build-clauses* and create a like-structured list that includes only what needs to be done and in the correct order for a single target
+  "Go through *build-clauses* and create a like-structured list that includes only what needs to be done and in the correct order for a single target.
    Also returned is a list of the out-of-date dependencies of the target.
 "
   (declare (type string target))
@@ -266,44 +344,45 @@
 					; first the ones that have recipies
     (map nil 
 	 #'(lambda (bc)
-	     (if (not (eq 'corresponding (car bc)))
-		 (cond ((and (cddr bc)	                                 ; has recipe
-			     (string-found target (car bc))              ; applicable target
-			     (or (null (cadr bc))                        ; no dependencies
-				 (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
-			(setq dependencies (join-set dependencies (cadr bc)))
+	     (if (is-dependency bc)
+		 (cond ((and (d-recipe bc)                                 ; has recipe
+			     (string-found target (d-target bc))           ; applicable target
+			     (or (null (d-deps bc))                        ; no dependencies
+				 (is-out-of-date target (d-deps bc) nil))) ; has dependencies and some are out-of-date
+			(setq dependencies (join-set dependencies (d-deps bc)))
 			(setq build-clauses (cons bc build-clauses))))
-		 (let ((ti (caddr bc))
-		       (di (cadddr bc)))
-		   (if (and  (equal target (cadr bc))                    ; corresponding builds
-			     (or (file-needs-to-be-rebuilt (cadr bc))
-				 (corresponding-needs-to-be-built (cadr di) (car di) (cadr ti) (car ti))))
-		       (setq build-clauses (cons bc build-clauses))))))
+		 (let ((ti (c-target-info bc))
+		       (di (c-dep-info bc)))
+		   (cond ((and (equal target (c-target bc))                ; corresponding builds
+			       (or (target-rebuild-p (c-target bc))
+				   (corresponding-needs-to-be-built (c-type di) (c-root-path di) (c-type ti) (c-root-path ti) (c-other-deps bc))))
+			  (setq dependencies (join-set dependencies (c-other-deps bc)))
+			  (setq build-clauses (cons bc build-clauses)))))))
 	 *build-clauses*)
 					; now the ones that have no recipies
     (map nil 
 	 #'(lambda (bc)
-	     (if (not (eq 'corresponding (car bc)))
-		 (cond ((and (null (cddr bc))                            ; doesn't have recipe
-			     (string-found target (car bc))              ; applicable target
-			     (or (null (cadr bc))                        ; no dependencies
-				 (is-out-of-date target (cadr bc) nil))) ; has dependencies and some are out-of-date
-			(setq dependencies (join-set dependencies (cadr bc)))
+	     (if (is-dependency bc)
+		 (cond ((and (null (d-recipe bc))                          ; doesn't have recipe
+			     (string-found target (d-target bc))           ; applicable target
+			     (or (null (d-deps bc))                        ; no dependencies
+				 (is-out-of-date target (d-deps bc) nil))) ; has dependencies and some are out-of-date
+			(setq dependencies (join-set dependencies (d-deps bc)))
 			(setq build-clauses (cons bc build-clauses))))))
 	 *build-clauses*)
     (values build-clauses dependencies)))
 
 (defun sort-build-clauses (targets)
   (declare (type list targets))
-  (let (allcmds)
+  (let (all-build-clauses)
     (loop for target in targets
-       do (multiple-value-bind (cmds deps) (sort-single-dependency target)
-	    (cond (cmds
-		   (setq allcmds (append cmds allcmds))
+       do (multiple-value-bind (build-clauses deps) (sort-single-dependency target)
+	    (cond (build-clauses
+		   (setq all-build-clauses (append build-clauses all-build-clauses))
 		   (loop for d in deps
-		      do (if (is-out-of-date target d nil)
-			     (setq allcmds (append (sort-build-clauses (list d)) allcmds))))))))
-    allcmds))
+		      do (if (target-rebuild-p d)	       ; (is-out-of-date target d nil)
+			     (setq all-build-clauses (append (sort-build-clauses (list d)) all-build-clauses))))))))
+    all-build-clauses))
 
 (defun makelist (x)
   "Takes nil, atom, or list and returns a list.  Good for map."
@@ -345,12 +424,12 @@
   (let ((cwd (concatenate 'string (sb-posix:getcwd) "/")))
     (maphash #'(lambda (key val)
 		 (let ((path (concatenate 'string cwd key)))
-		   (setf (gethash key *file-info*) 
+		   (setf (gethash key *target-info*) 
 			 (cons (if (probe-file path) 
 				   (sb-posix:stat-mtime (sb-posix:stat key))
 				   0) 
 			       (cdr val)))))
-	     *file-info*)))
+	     *target-info*)))
 
 (defun create-names (path suffix &rest files)
     "User level function to add a path and suffix to an arbitrary list of file names"
@@ -394,22 +473,26 @@
   "Load build.lisp
    Return t if successful
    Return nil if not successful"
-  (handler-case
-      (progn
-	(load "build.lisp")
-	(if *verbose*
-	    (format t "build.lisp has been loaded~%"))
-	(if (and *verbose* *main-targets*)
-	    (progn
-	      (format t "Building ")
-	      (print-list *main-targets*)))
-	t)
-    (t (c)
-      (format *error-output* "~%Error loading file build.lisp~%")
-      (if t (format *error-output* "~s" c))
-      nil)))
+  (let ((r (handler-case
+	       (progn
+		 (handler-bind ((style-warning #'muffle-warning))
+		     (load "build.lisp"))
+		 t)
+	     (t (c)
+	       (format *error-output* "~%Error loading file build.lisp~%")
+	       (format *error-output* "~a" c)
+	       nil))))
+    (cond (r
+	   (if *verbose*
+	       (format t "build.lisp has been loaded~%"))
+	   (if (and *verbose* *main-targets*)
+	       (progn
+		 (format t "Building ")
+		 (print-list *main-targets*)))))
+    r))
 
 (defun make-ood-dependencies (targets dependencies)
+  "Make out-of-date dependencies."
   (let (ood-dependencies)
     (loop for target in (makelist targets)
        do (loop for dep in (makelist dependencies)
@@ -417,27 +500,39 @@
 		    (setq ood-dependencies (cons dep ood-dependencies)))))
     ood-dependencies))
 
-(defun execute-build (cmds)
-  (declare (type list cmds))
-  (loop for cmd in cmds
-     do (if (not (eq 'corresponding (car cmd))) 
-	    (if (caddr cmd)
-		(funcall (caddr cmd)
-			 (caar cmd)
-			 (caadr cmd)
-			 (make-ood-dependencies (caar cmd) (caadr cmd))))
-	    (if (caddddr cmd)
-		(let* ((ti (caddr cmd))
-		       (di (cadddr cmd))
-		       (file-list (get-newer-file-tree (cadr di) (car di) (cadr ti) (car ti)))
+(defun execute-build (clauses)
+  "Execute the clauses in order."
+  (declare (type list clauses))
+  (loop for bc in clauses
+     do (if (is-dependency bc) 
+	    (if (d-has-recipe bc)
+		(handler-case 
+		    (funcall (d-recipe bc)
+			     (d-target bc)
+			     (d-deps bc)
+			     (make-ood-dependencies (d-target bc) (d-deps bc)))
+		  (t (condition)
+		    (format *error-output* "~%Error loading file build.lisp~%")
+		    (format *error-output* "~a" condition)
+		    (return-from execute-build nil))))
+	    (if (c-has-recipe bc)
+		(let* ((ti (c-target-info bc))
+		       (di (c-dep-info bc))
+		       (file-list (get-newer-file-tree (c-type di) (c-root-path di) (c-type ti) (c-root-path ti)))
 		       (input-file-name (create-temp-file file-list)))
-		  (funcall (caddddr cmd)             ; cmd
-				     (car di)        ; dependency root directory
-				     (car ti)        ; target root directory
-				     file-list       ; list of source files that need to be built
-				     input-file-name ; name of temp file hold list of files that need to be built
-				     )
-		  (delete-file input-file-name)))))
+		  (handler-case
+		      (progn
+			(funcall (c-recipe bc) ; bc
+				 (c-root-path di) ; dependency root directory
+				 (c-root-path ti) ; target root directory
+				 file-list ; list of source files that need to be built
+				 input-file-name ; name of temp file hold list of files that need to be built
+				 )
+			(delete-file input-file-name))
+		    (t (condition)
+		      (format *error-output* "~%Error loading file build.lisp~%")
+		      (format *error-output* "~a" c)
+		      (return-from execute-build nil)))))))
   t)
 
 (defun absolute-path (path)
@@ -519,9 +614,9 @@
 			 (setq res (append res res2)))))))))
     res))
 
-(defun corresponding-needs-to-be-built (dep-type dep-root-dir target-type target-root-path &optional path)
+(defun corresponding-needs-to-be-built (dep-type dep-root-dir target-type target-root-path library-files &optional path)
   "Returns t if clause needs to be run, nil otherwise
-   Example:  (corresponding-needs-to-be-built \".java\" \"src\" \".class\" \"out/\")
+   Example:  (corresponding-needs-to-be-built \".java\" \"src\" \".class\" \"out/\" library-files)
 "
   (declare (type string dep-type dep-root-dir target-type target-root-path))
   (if (not path)
@@ -536,16 +631,18 @@
 		 (if (and (string-ends-with-p ents dep-type)
 			  (not (equal "package-info.java" (file-namestring ent))) ; class files don't get built for the file
 			  (let ((new-file (get-corresponding-file dep-root-dir ents dep-type target-root-path target-type)))
-			    (is-out-of-date-atom new-file ents nil)))
+			    (or (is-out-of-date-atom new-file ents nil)
+				(is-out-of-date new-file library-files nil))))
 		     (return-from corresponding-needs-to-be-built t)))
 		(2			; directory
-		 (let ((res2 (corresponding-needs-to-be-built dep-type dep-root-dir target-type target-root-path ents)))
+		 (let ((res2 (corresponding-needs-to-be-built dep-type dep-root-dir target-type target-root-path library-files ents)))
 		   (if res2
 		       (return-from corresponding-needs-to-be-built t))))))))
   nil)
 
 (defun get-file-tree (type path)
   "Returns a list of files that exist within an entire directory tree with a given file extension.
+   If type is \"\", get all files.
    Example:  (get-file-tree \".java\" \"src\")
 "
   (declare (type string type path))
@@ -579,8 +676,8 @@
 	   do (format stream "~a~%" file)))
     fname))
 
-(defun reset-file-info ()
-  (clrhash *file-info*))
+(defun reset-target-info ()
+  (clrhash *target-info*))
 
 (defun rm (&rest file-list)
   "User-level function to remove files"
@@ -628,22 +725,33 @@
 ;; language specific extensions
 
 
-(defmacro build-java (name src-path target-path &optional lib-path)
+(defmacro build-java (name src-path target-path &key lib-path other-deps)
   "User level function for building class files from java source files"
-   `(corresponding-depends ,name (,target-path ".class") (,src-path ".java")
-        (ensure-directories-exist target-root)
-        (run "javac" "-cp" (concatenate 'string target-root (list-names-with-colon ,lib-path ".jar")) "-sourcepath" dependency-root "-d" target-root (format nil "@~a" source-list-file-name))))
+  `(corresponding-depends ,name (,target-path ".class") (,src-path ".java")
+			  ,other-deps
+			  (ensure-directories-exist target-root)
+			 ; (format t "~a~%" source-file-list)
+			  (run "javac" "-cp" (concatenate 'string target-root (list-names-with-colon ,lib-path ".jar")) "-sourcepath" dependency-root "-d" target-root (format nil "@~a" source-list-file-name))))
 
-(defmacro jar-depends (jar-with-path  root-path-to-jar)
+(defmacro jar-depends (jar-with-path  root-path-to-jar &optional dependency)
   "User-level convenience function for building jar files"
-  (let ((-root-path-to-jar- (gensym))
-        (-jar-with-path- (gensym)))
-   `(let ((,-root-path-to-jar- ,root-path-to-jar)
-          (,-jar-with-path- ,jar-with-path))
-       (depends ,-jar-with-path- (get-file-tree ,-root-path-to-jar-)
-         (pushd ,-root-path-to-jar-)
-         (apply #'run (cons "jar" (cons "cvf" (cons (absolute-path (car target)) (all-entries-in-current-directory)))))
-         (popd)))))
+  (let ((dep-list
+	 (append (makelist dependency) (list (function (lambda ()
+						(let (res)
+						  (pushd root-path-to-jar)
+						  (setq res (all-entries-in-current-directory))
+						  (popd)
+						  res)))))))
+    `(depends ,jar-with-path ,dep-list
+	      (let ((full-jar-path (absolute-path (car target))))
+		(pushd ,root-path-to-jar)
+		(apply #'run (cons "jar" (cons "cvf" (cons full-jar-path 
+							   (let (res)
+							     (pushd ,root-path-to-jar)
+							     (setq res (all-entries-in-current-directory))
+							     (popd)
+							     res)))))
+		(popd)))))
 
 (defmacro build-children (&rest dirs)
   "Recipe function used to build a series of child projects"
@@ -668,15 +776,24 @@
 
 ;; end
 
-(defun main ()
+(defun build (&rest args)
   (if *debugging*
-      (progn (reset-file-info)
+      (progn (reset-target-info)
 	     (setq *build-clauses* nil)
-	     (setq *main-targets* nil)))
-  (setq *build* (namestring (truename (car sb-ext:*posix-argv*))))
-  (setq *build-args* (cdr sb-ext:*posix-argv*))
-  (if (cdr sb-ext:*posix-argv*)
-      (setq *main-targets* (cdr sb-ext:*posix-argv*)))
+	     (setq *main-targets* nil)
+	     (setq *build* nil)
+	     (setq *build-args* args))
+      (progn
+	(setq *build* (namestring (truename (car sb-ext:*posix-argv*))))
+	(setq *build-args* (cdr sb-ext:*posix-argv*))))
+  (if *build-args*
+      (setq *main-targets* *build-args*))
+  
+  
+  (load-build-file)
+  (break)
+  
+  
   (if (load-build-file)
       (cond (*main-targets*
 	     (check-multiple-targets *main-targets*)
@@ -688,5 +805,7 @@
 	    (t (format t "No main target to build~%")))))
 
 (if (not *debugging*)
-    (save-lisp-and-die "build" :executable t :toplevel #'main))
+    (save-lisp-and-die "build" :executable t :toplevel #'build))
+
+
 
