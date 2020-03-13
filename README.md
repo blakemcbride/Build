@@ -1,6 +1,12 @@
 
 # **BUILD** - a software build system
 
+## Note: For now, this project has been shelved.  A new system, written
+  in Java, has been built and is in production as part of the [Kiss
+  Web Development System](https://github.com/blakemcbride/Kiss).  It
+  is planned that a new and enhanced Lisp version will be built soon.
+  
+
 *build* is a software build system like *make*, *ant*, *maven*, and
 *gradle*.  It is being built as a response to a significant
 frustration with existing build systems and no known readily available,
